@@ -153,11 +153,11 @@ var _ = Describe("utils/table tests", func() {
 		})
 	})
 	Describe("GetUniqueSchemas", func() {
-		alphabeticalAFoo := utils.Relation{1, 0, "otherschema", "foo", "", ""}
-		alphabeticalABar := utils.Relation{1, 0, "otherschema", "bar", "", ""}
+		alphabeticalAFoo := utils.Relation{1, 0, "otherschema", "foo"}
+		alphabeticalABar := utils.Relation{1, 0, "otherschema", "bar"}
 		schemaOther := utils.Schema{2, "otherschema", "", ""}
-		alphabeticalBFoo := utils.Relation{2, 0, "public", "foo", "", ""}
-		alphabeticalBBar := utils.Relation{2, 0, "public", "bar", "", ""}
+		alphabeticalBFoo := utils.Relation{2, 0, "public", "foo"}
+		alphabeticalBBar := utils.Relation{2, 0, "public", "bar"}
 		schemaPublic := utils.Schema{1, "public", "Standard public schema", ""}
 		schemas := []utils.Schema{schemaOther, schemaPublic}
 

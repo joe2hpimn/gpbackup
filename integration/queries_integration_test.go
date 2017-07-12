@@ -269,8 +269,8 @@ PARTITION BY LIST (gender)
 
 			sequences := backup.GetAllSequenceRelations(connection)
 
-			mySequence := utils.Relation{0, 0, "public", "my_sequence", "this is a sequence comment", "testrole"}
-			mySequence2 := utils.Relation{0, 0, "testschema", "my_sequence2", "", "testrole"}
+			mySequence := utils.BasicRelation("public", "my_sequence")
+			mySequence2 := utils.BasicRelation("testschema", "my_sequence2")
 
 			Expect(len(sequences)).To(Equal(2))
 			testutils.ExpectStructsToMatchExcluding(&mySequence, &sequences[0], "SchemaOid", "RelationOid")
@@ -313,7 +313,7 @@ PARTITION BY LIST (gender)
 			testutils.AssertQueryRuns(connection, "CREATE SEQUENCE my_sequence OWNED BY with_sequence.a;")
 			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE my_sequence")
 
-			sequenceMap := backup.GetSequenceOwnerMap(connection)
+			sequenceMap := backup.GetSequenceColumnOwnerMap(connection)
 
 			Expect(len(sequenceMap)).To(Equal(1))
 			Expect(sequenceMap["public.my_sequence"]).To(Equal("with_sequence.a"))
@@ -357,9 +357,9 @@ PARTITION BY LIST (gender)
 			testutils.AssertQueryRuns(connection, "CREATE SEQUENCE seq_two START 7")
 			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE seq_two")
 
-			seqOneRelation := utils.Relation{SchemaName: "public", RelationName: "seq_one", Comment: "this is a sequence comment", Owner: "testrole"}
+			seqOneRelation := utils.BasicRelation("public", "seq_one")
 			seqOneDef := backup.QuerySequenceDefinition{Name: "seq_one", LastVal: 3, Increment: 1, MaxVal: 9223372036854775807, MinVal: 1, CacheVal: 1}
-			seqTwoRelation := utils.Relation{SchemaName: "public", RelationName: "seq_two", Owner: "testrole"}
+			seqTwoRelation := utils.BasicRelation("public", "seq_two")
 			seqTwoDef := backup.QuerySequenceDefinition{Name: "seq_two", LastVal: 7, Increment: 1, MaxVal: 9223372036854775807, MinVal: 1, CacheVal: 1}
 
 			results := backup.GetAllSequences(connection)
@@ -728,16 +728,9 @@ CYCLE`)
 			fooOid := testutils.OidFromRelationName(connection, "foo")
 			barOid := testutils.OidFromRelationName(connection, "bar")
 			bazOid := testutils.OidFromRelationName(connection, "baz")
-			expectedFoo := utils.ObjectMetadata{Privileges: []utils.ACL{
-				{"testrole", true, true, true, false, true, true, true},
-			}, Owner: "testrole"}
-			expectedBar := utils.ObjectMetadata{Privileges: []utils.ACL{
-				{Grantee: "GRANTEE"},
-			}, Owner: "testrole"}
-			expectedBaz := utils.ObjectMetadata{Privileges: []utils.ACL{
-				{"gpadmin", true, true, true, true, true, true, true},
-				{"testrole", true, true, true, true, true, true, true},
-			}, Owner: "testrole"}
+			expectedFoo := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLWithout("testrole", "TABLE", "DELETE")}, Owner: "testrole"}
+			expectedBar := utils.ObjectMetadata{Privileges: []utils.ACL{{Grantee: "GRANTEE"}}, Owner: "testrole"}
+			expectedBaz := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("gpadmin", "TABLE"), utils.DefaultACLForType("testrole", "TABLE")}, Owner: "testrole"}
 			Expect(len(resultMetadataMap)).To(Equal(3))
 			resultFoo := resultMetadataMap[fooOid]
 			resultBar := resultMetadataMap[barOid]
@@ -749,12 +742,27 @@ CYCLE`)
 		It("returns a slice of default metadata for a table", func() {
 			testutils.AssertQueryRuns(connection, "CREATE TABLE testtable(i int)")
 			defer testutils.AssertQueryRuns(connection, "DROP TABLE testtable")
+			testutils.AssertQueryRuns(connection, "GRANT ALL ON TABLE testtable TO testrole")
 			testutils.AssertQueryRuns(connection, "COMMENT ON TABLE testtable IS 'This is a table comment.'")
 
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
 			oid := testutils.OidFromRelationName(connection, "testtable")
-			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{}, Owner: "testrole", Comment: "This is a table comment."}
+			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("testrole", "TABLE")}, Owner: "testrole", Comment: "This is a table comment."}
+			Expect(len(resultMetadataMap)).To(Equal(1))
+			resultMetadata := resultMetadataMap[oid]
+			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+		})
+		It("returns a slice of default metadata for a sequence", func() {
+			testutils.AssertQueryRuns(connection, "CREATE SEQUENCE testsequence")
+			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE testsequence")
+			testutils.AssertQueryRuns(connection, "GRANT ALL ON SEQUENCE testsequence TO testrole")
+			testutils.AssertQueryRuns(connection, "COMMENT ON SEQUENCE testsequence IS 'This is a sequence comment.'")
+
+			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
+
+			oid := testutils.OidFromRelationName(connection, "testsequence")
+			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("testrole", "SEQUENCE")}, Owner: "testrole", Comment: "This is a sequence comment."}
 			Expect(len(resultMetadataMap)).To(Equal(1))
 			resultMetadata := resultMetadataMap[oid]
 			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)

@@ -188,9 +188,9 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 
 	logger.Verbose("Writing CREATE SEQUENCE statements to predata file")
 	sequenceDefs := GetAllSequences(connection)
-	sequenceOwners := GetSequenceOwnerMap(connection)
-	PrintCreateSequenceStatements(predataFile, sequenceDefs, sequenceOwners)
-
+	sequenceColumnOwners := GetSequenceColumnOwnerMap(connection)
+	sequenceMetadata := GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
+	PrintCreateSequenceStatements(predataFile, sequenceDefs, sequenceColumnOwners, sequenceMetadata)
 }
 
 func backupData(tables []utils.Relation, extTableMap map[string]bool) {
