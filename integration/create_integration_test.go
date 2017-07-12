@@ -362,18 +362,20 @@ var _ = Describe("backup integration create statement tests", func() {
 	})
 	Describe("PrintCreateSequenceStatements", func() {
 		var (
-			ownerMap    map[string]string
-			sequence    utils.Relation
-			sequenceDef backup.Sequence
+			columnOwnerMap      map[string]string
+			sequence            utils.Relation
+			sequenceDef         backup.Sequence
+			sequenceMetadataMap map[uint32]utils.ObjectMetadata
 		)
 		BeforeEach(func() {
-			sequence = utils.Relation{SchemaName: "public", RelationName: "my_sequence", Owner: "testrole"}
+			sequence = utils.Relation{0, 1, "public", "my_sequence"}
 			sequenceDef = backup.Sequence{Relation: sequence}
-			ownerMap = map[string]string{}
+			columnOwnerMap = map[string]string{}
+			sequenceMetadataMap = map[uint32]utils.ObjectMetadata{}
 		})
 		It("creates a basic sequence", func() {
 			sequenceDef.QuerySequenceDefinition = backup.QuerySequenceDefinition{Name: "my_sequence", LastVal: 1, Increment: 1, MaxVal: 9223372036854775807, MinVal: 1, CacheVal: 1}
-			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, ownerMap)
+			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, columnOwnerMap, sequenceMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE my_sequence")
@@ -386,7 +388,7 @@ var _ = Describe("backup integration create statement tests", func() {
 		})
 		It("creates a complex sequence", func() {
 			sequenceDef.QuerySequenceDefinition = backup.QuerySequenceDefinition{Name: "my_sequence", LastVal: 105, Increment: 5, MaxVal: 1000, MinVal: 20, CacheVal: 1, LogCnt: 0, IsCycled: false, IsCalled: true}
-			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, ownerMap)
+			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, columnOwnerMap, sequenceMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE my_sequence")
@@ -400,8 +402,8 @@ var _ = Describe("backup integration create statement tests", func() {
 		It("creates a sequence owned by a table column", func() {
 			sequenceDef.QuerySequenceDefinition = backup.QuerySequenceDefinition{Name: "my_sequence",
 				LastVal: 1, Increment: 1, MaxVal: 9223372036854775807, MinVal: 1, CacheVal: 1}
-			ownerMap["public.my_sequence"] = "sequence_table.a"
-			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, ownerMap)
+			columnOwnerMap["public.my_sequence"] = "sequence_table.a"
+			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, columnOwnerMap, sequenceMetadataMap)
 
 			//Create table that sequence can be owned by
 			testutils.AssertQueryRuns(connection, "CREATE TABLE sequence_table(a int)")
@@ -415,6 +417,25 @@ var _ = Describe("backup integration create statement tests", func() {
 			Expect(len(resultSequences)).To(Equal(1))
 			testutils.ExpectStructsToMatchExcluding(&sequence, &resultSequences[0].Relation, "SchemaOid", "RelationOid")
 			testutils.ExpectStructsToMatch(&sequenceDef.QuerySequenceDefinition, &resultSequences[0].QuerySequenceDefinition)
+		})
+		It("creates a sequence with privileges, owner, and comment", func() {
+			sequenceDef.QuerySequenceDefinition = backup.QuerySequenceDefinition{Name: "my_sequence", LastVal: 1, Increment: 1, MaxVal: 9223372036854775807, MinVal: 1, CacheVal: 1}
+			sequenceMetadata := utils.ObjectMetadata{[]utils.ACL{utils.DefaultACLWithout("testrole", "SEQUENCE", "UPDATE")}, "testrole", "This is a sequence comment."}
+			sequenceMetadataMap[1] = sequenceMetadata
+			backup.PrintCreateSequenceStatements(buffer, []backup.Sequence{sequenceDef}, columnOwnerMap, sequenceMetadataMap)
+
+			testutils.AssertQueryRuns(connection, buffer.String())
+			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE my_sequence")
+
+			resultSequences := backup.GetAllSequences(connection)
+
+			Expect(len(resultSequences)).To(Equal(1))
+			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
+			oid := testutils.OidFromRelationName(connection, "public.my_sequence")
+			resultMetadata := resultMetadataMap[oid]
+			testutils.ExpectStructsToMatchExcluding(&sequence, &resultSequences[0].Relation, "SchemaOid", "RelationOid")
+			testutils.ExpectStructsToMatch(&sequenceDef.QuerySequenceDefinition, &resultSequences[0].QuerySequenceDefinition)
+			testutils.ExpectStructsToMatch(&sequenceMetadata, &resultMetadata)
 		})
 	})
 	Describe("PrintSessionGUCs", func() {
@@ -640,7 +661,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 	Describe("PrintPostCreateTableStatements", func() {
 		var (
 			extTableEmpty = backup.ExternalTableDefinition{-2, -2, "", "ALL_SEGMENTS", "t", "", "", "", 0, "", "", "UTF-8", false}
-			testTable     = utils.Relation{SchemaName: "public", RelationName: "test_table", Owner: "testrole"}
+			testTable     = utils.BasicRelation("public", "test_table")
 			tableRow      = backup.ColumnDefinition{1, "i", false, false, false, "integer", "", "", ""}
 			tableDef      = backup.TableDefinition{DistPolicy: "DISTRIBUTED BY (i)", ColumnDefs: []backup.ColumnDefinition{tableRow}, ExtTableDef: extTableEmpty}
 			tableMetadata utils.ObjectMetadata
@@ -690,7 +711,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 				0, backup.FILE, "file://tmp/ext_table_file", "ALL_SEGMENTS",
 				"t", "delimiter '	' null '\\N' escape '\\'", "", "",
 				0, "", "", "UTF8", false}
-			testTable = utils.Relation{SchemaName: "public", RelationName: "test_table", Owner: "testrole"}
+			testTable = utils.BasicRelation("public", "test_table")
 			tableDef = backup.TableDefinition{IsExternal: true}
 			os.Create("/tmp/ext_table_file")
 		})

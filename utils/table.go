@@ -42,8 +42,6 @@ type Relation struct {
 	RelationOid  uint32
 	SchemaName   string
 	RelationName string
-	Comment      string
-	Owner        string
 }
 
 type ObjectMetadata struct {
@@ -61,6 +59,7 @@ type ACL struct {
 	Truncate   bool
 	References bool
 	Trigger    bool
+	Usage      bool
 }
 
 /*
@@ -83,9 +82,9 @@ func MakeFQN(schema string, object string) string {
 }
 
 /*
- * The following functions create Schemas and Relations with only the schema and
- * relation names set, for use in SchemaFromString and RelationFromString and to
- * make creating sample schemas and relations in tests easier.
+ * The following functions create structs with reasonable default values set,
+ * for use in SchemaFromString and RelationFromString and to make creating
+ * sample structs in tests easier.
  */
 func BasicSchema(schema string) Schema {
 	return Schema{
@@ -102,9 +101,46 @@ func BasicRelation(schema string, relation string) Relation {
 		SchemaName:   schema,
 		RelationOid:  0,
 		RelationName: relation,
-		Comment:      "",
-		Owner:        "",
 	}
+}
+
+func DefaultACLForType(grantee string, objType string) ACL {
+	return ACL{
+		Grantee:    grantee,
+		Select:     objType == "TABLE" || objType == "SEQUENCE",
+		Insert:     objType == "TABLE",
+		Update:     objType == "TABLE" || objType == "SEQUENCE",
+		Delete:     objType == "TABLE",
+		Truncate:   objType == "TABLE",
+		References: objType == "TABLE",
+		Trigger:    objType == "TABLE",
+		Usage:      objType == "SEQUENCE",
+	}
+}
+
+func DefaultACLWithout(grantee string, objType string, revoke ...string) ACL {
+	defaultACL := DefaultACLForType(grantee, objType)
+	for _, priv := range revoke {
+		switch priv {
+		case "SELECT":
+			defaultACL.Select = false
+		case "INSERT":
+			defaultACL.Insert = false
+		case "UPDATE":
+			defaultACL.Update = false
+		case "DELETE":
+			defaultACL.Delete = false
+		case "TRUNCATE":
+			defaultACL.Truncate = false
+		case "REFERENCES":
+			defaultACL.References = false
+		case "TRIGGER":
+			defaultACL.Trigger = false
+		case "USAGE":
+			defaultACL.Usage = false
+		}
+	}
+	return defaultACL
 }
 
 /*
@@ -176,9 +212,9 @@ func ParseACL(aclStr string) *ACL {
 		for _, char := range permStr {
 			switch char {
 			case 'a':
-				acl.Select = true
-			case 'r':
 				acl.Insert = true
+			case 'r':
+				acl.Select = true
 			case 'w':
 				acl.Update = true
 			case 'd':
@@ -189,6 +225,12 @@ func ParseACL(aclStr string) *ACL {
 				acl.References = true
 			case 't':
 				acl.Trigger = true
+			case 'X':
+			case 'U':
+				acl.Usage = true
+			case 'C':
+			case 'T':
+			case 'c':
 			}
 		}
 		acl.Grantee = grantee

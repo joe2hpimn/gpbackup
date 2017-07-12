@@ -209,9 +209,7 @@ func GetAllSequenceRelations(connection *utils.DBConn) []utils.Relation {
 	n.oid AS schemaoid,
 	c.oid AS relationoid,
 	n.nspname AS schemaname,
-	c.relname AS relationname,
-	coalesce(obj_description(c.oid, 'pg_class'), '') AS comment,
-	pg_get_userbyid(c.relowner) AS owner
+	c.relname AS relationname
 FROM pg_class c
 LEFT JOIN pg_namespace n
 	ON c.relnamespace = n.oid
@@ -251,7 +249,7 @@ type QuerySequenceOwner struct {
 	ColumnName   string `db:"attname"`
 }
 
-func GetSequenceOwnerMap(connection *utils.DBConn) map[string]string {
+func GetSequenceColumnOwnerMap(connection *utils.DBConn) map[string]string {
 	query := `SELECT
 	n.nspname,
 	s.relname AS sequencename,

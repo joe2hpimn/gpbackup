@@ -74,6 +74,9 @@ func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName st
 				if acl.Trigger {
 					grantList = append(grantList, "TRIGGER")
 				}
+				if acl.Usage {
+					grantList = append(grantList, "USAGE")
+				}
 				grantStr = strings.Join(grantList, ",")
 			}
 			if grantStr != "" {
@@ -165,7 +168,7 @@ func GetAllSequences(connection *utils.DBConn) []Sequence {
  * This function is largely derived from the dumpSequence() function in pg_dump.c.  The values of
  * minVal and maxVal come from SEQ_MINVALUE and SEQ_MAXVALUE, defined in include/commands/sequence.h.
  */
-func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, sequenceOwners map[string]string) {
+func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, sequenceColumnOwners map[string]string, sequenceMetadata map[uint32]utils.ObjectMetadata) {
 	maxVal := int64(9223372036854775807)
 	minVal := int64(-9223372036854775807)
 	for _, sequence := range sequences {
@@ -194,17 +197,11 @@ func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, 
 
 		utils.MustPrintf(predataFile, "\n\nSELECT pg_catalog.setval('%s', %d, %v);\n", seqFQN, sequence.LastVal, sequence.IsCalled)
 
-		if sequence.Owner != "" {
-			utils.MustPrintf(predataFile, "\n\nALTER TABLE %s OWNER TO %s;\n", seqFQN, utils.QuoteIdent(sequence.Owner))
-		}
-		// owningColumn is quoted when the map is constructed in GetSequenceOwnerMap() and doesn't need to be quoted again
-		if owningColumn, hasOwner := sequenceOwners[seqFQN]; hasOwner {
+		// owningColumn is quoted when the map is constructed in GetSequenceColumnOwnerMap() and doesn't need to be quoted again
+		if owningColumn, hasColumnOwner := sequenceColumnOwners[seqFQN]; hasColumnOwner {
 			utils.MustPrintf(predataFile, "\n\nALTER SEQUENCE %s OWNED BY %s;\n", seqFQN, owningColumn)
 		}
-
-		if sequence.Comment != "" {
-			utils.MustPrintf(predataFile, "\n\nCOMMENT ON SEQUENCE %s IS '%s';\n", seqFQN, sequence.Comment)
-		}
+		PrintObjectMetadata(predataFile, sequenceMetadata[sequence.RelationOid], seqFQN, "SEQUENCE", "", "TABLE")
 	}
 }
 
