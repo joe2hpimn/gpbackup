@@ -177,15 +177,16 @@ var _ = Describe("backup integration create statement tests", func() {
 		})
 	})
 	Describe("PrintCreateFunctionStatements", func() {
+		funcMetadataMap := map[uint32]utils.ObjectMetadata{}
 		It("creates a function with a simple return type", func() {
 			addFunction := backup.QueryFunctionDefinition{
 				SchemaName: "public", FunctionName: "add", ReturnsSet: false, FunctionBody: "SELECT $1 + $2",
 				BinaryPath: "", Arguments: "integer, integer", IdentArgs: "integer, integer", ResultType: "integer",
 				Volatility: "v", IsStrict: false, IsSecurityDefiner: false, Config: "", Cost: 100, NumRows: 0, DataAccess: "c",
-				Language: "sql", Comment: "", Owner: "testrole",
+				Language: "sql",
 			}
 
-			backup.PrintCreateFunctionStatements(buffer, []backup.QueryFunctionDefinition{addFunction})
+			backup.PrintCreateFunctionStatements(buffer, []backup.QueryFunctionDefinition{addFunction}, funcMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP FUNCTION add(integer, integer)")
@@ -193,17 +194,17 @@ var _ = Describe("backup integration create statement tests", func() {
 			resultFunctions := backup.GetFunctionDefinitions(connection)
 
 			Expect(len(resultFunctions)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&addFunction, &resultFunctions[0])
+			testutils.ExpectStructsToMatchExcluding(&addFunction, &resultFunctions[0], "FunctionOid")
 		})
 		It("creates a function that returns a set", func() {
 			appendFunction := backup.QueryFunctionDefinition{
 				SchemaName: "public", FunctionName: "append", ReturnsSet: true, FunctionBody: "SELECT ($1, $2)",
 				BinaryPath: "", Arguments: "integer, integer", IdentArgs: "integer, integer", ResultType: "SETOF record",
 				Volatility: "s", IsStrict: true, IsSecurityDefiner: true, Config: "SET search_path TO pg_temp", Cost: 200,
-				NumRows: 200, DataAccess: "m", Language: "sql", Comment: "this is a function comment", Owner: "testrole",
+				NumRows: 200, DataAccess: "m", Language: "sql",
 			}
 
-			backup.PrintCreateFunctionStatements(buffer, []backup.QueryFunctionDefinition{appendFunction})
+			backup.PrintCreateFunctionStatements(buffer, []backup.QueryFunctionDefinition{appendFunction}, funcMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP FUNCTION append(integer, integer)")
@@ -211,17 +212,17 @@ var _ = Describe("backup integration create statement tests", func() {
 			resultFunctions := backup.GetFunctionDefinitions(connection)
 
 			Expect(len(resultFunctions)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&appendFunction, &resultFunctions[0])
+			testutils.ExpectStructsToMatchExcluding(&appendFunction, &resultFunctions[0], "FunctionOid")
 		})
 		It("creates a function that returns a table", func() {
 			dupFunction := backup.QueryFunctionDefinition{
 				SchemaName: "public", FunctionName: "dup", ReturnsSet: true, FunctionBody: "SELECT $1, CAST($1 AS text) || ' is text'",
 				BinaryPath: "", Arguments: "integer", IdentArgs: "integer", ResultType: "TABLE(f1 integer, f2 text)",
 				Volatility: "v", IsStrict: false, IsSecurityDefiner: false, Config: "", Cost: 100, NumRows: 1000, DataAccess: "c",
-				Language: "sql", Comment: "", Owner: "testrole",
+				Language: "sql",
 			}
 
-			backup.PrintCreateFunctionStatements(buffer, []backup.QueryFunctionDefinition{dupFunction})
+			backup.PrintCreateFunctionStatements(buffer, []backup.QueryFunctionDefinition{dupFunction}, funcMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP FUNCTION dup(integer)")
@@ -229,7 +230,7 @@ var _ = Describe("backup integration create statement tests", func() {
 			resultFunctions := backup.GetFunctionDefinitions(connection)
 
 			Expect(len(resultFunctions)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&dupFunction, &resultFunctions[0])
+			testutils.ExpectStructsToMatchExcluding(&dupFunction, &resultFunctions[0], "FunctionOid")
 		})
 	})
 	Describe("PrintCreateAggregateStatements", func() {

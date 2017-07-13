@@ -153,7 +153,8 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 
 	logger.Verbose("Writing CREATE FUNCTION statements to predata file")
 	funcDefs := GetFunctionDefinitions(connection)
-	PrintCreateFunctionStatements(predataFile, funcDefs)
+	funcMetadata := GetMetadataForObjectType(connection, "pronamespace", "proacl", "proowner", "pg_proc")
+	PrintCreateFunctionStatements(predataFile, funcDefs, funcMetadata)
 
 	logger.Verbose("Writing CREATE TYPE statements for base types to predata file")
 	PrintCreateBaseTypeStatements(predataFile, types)

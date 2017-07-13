@@ -13,7 +13,7 @@ import (
 	"github.com/greenplum-db/gpbackup/utils"
 )
 
-func PrintCreateFunctionStatements(predataFile io.Writer, funcDefs []QueryFunctionDefinition) {
+func PrintCreateFunctionStatements(predataFile io.Writer, funcDefs []QueryFunctionDefinition, funcMetadata map[uint32]utils.ObjectMetadata) {
 	for _, funcDef := range funcDefs {
 		funcFQN := utils.MakeFQN(funcDef.SchemaName, funcDef.FunctionName)
 		utils.MustPrintf(predataFile, "\n\nCREATE FUNCTION %s(%s) RETURNS ", funcFQN, funcDef.Arguments)
@@ -23,12 +23,8 @@ func PrintCreateFunctionStatements(predataFile io.Writer, funcDefs []QueryFuncti
 		PrintFunctionModifiers(predataFile, funcDef)
 		utils.MustPrintln(predataFile, ";")
 
-		if funcDef.Owner != "" {
-			utils.MustPrintf(predataFile, "\nALTER FUNCTION %s(%s) OWNER TO %s;\n", funcFQN, funcDef.IdentArgs, utils.QuoteIdent(funcDef.Owner))
-		}
-		if funcDef.Comment != "" {
-			utils.MustPrintf(predataFile, "\nCOMMENT ON FUNCTION %s(%s) IS '%s';\n", funcFQN, funcDef.IdentArgs, funcDef.Comment)
-		}
+		nameStr := fmt.Sprintf("%s(%s)", funcFQN, funcDef.IdentArgs)
+		PrintObjectMetadata(predataFile, funcMetadata[funcDef.FunctionOid], nameStr, "FUNCTION", "", "FUNCTION")
 	}
 }
 
