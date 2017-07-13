@@ -19,8 +19,8 @@ var _ = Describe("backup integration tests", func() {
 			defer testutils.AssertQueryRuns(connection, "DROP SCHEMA bar")
 			schemas := backup.GetAllUserSchemas(connection)
 
-			schemaBar := utils.Schema{0, "bar", "", "testrole"}
-			schemaPublic := utils.Schema{2200, "public", "standard public schema", "testrole"}
+			schemaBar := utils.Schema{0, "bar"}
+			schemaPublic := utils.Schema{2200, "public"}
 
 			Expect(len(schemas)).To(Equal(2))
 			testutils.ExpectStructsToMatchExcluding(&schemaBar, &schemas[0], "SchemaOid")

@@ -22,9 +22,10 @@ var _ = Describe("backup integration create statement tests", func() {
 	})
 	Describe("PrintCreateSchemaStatements", func() {
 		It("creates a non public schema", func() {
-			schemas := []utils.Schema{{0, "test_schema", "test comment", "testrole"}}
+			schemas := []utils.Schema{{0, "test_schema"}}
+			schemaMetadata := testutils.DefaultMetadataMap("SCHEMA")
 
-			backup.PrintCreateSchemaStatements(buffer, schemas)
+			backup.PrintCreateSchemaStatements(buffer, schemas, schemaMetadata)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP SCHEMA test_schema")
@@ -35,13 +36,13 @@ var _ = Describe("backup integration create statement tests", func() {
 			Expect(resultSchemas[0].SchemaName).To(Equal("public"))
 
 			testutils.ExpectStructsToMatchExcluding(&schemas[0], &resultSchemas[1], "SchemaOid")
-
 		})
 
 		It("modifies the public schema", func() {
-			schemas := []utils.Schema{{2200, "public", "test comment", "testrole"}}
+			schemas := []utils.Schema{{2200, "public"}}
+			schemaMetadata := testutils.DefaultMetadataMap("SCHEMA")
 
-			backup.PrintCreateSchemaStatements(buffer, schemas)
+			backup.PrintCreateSchemaStatements(buffer, schemas, schemaMetadata)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "ALTER SCHEMA public OWNER TO gpadmin")
@@ -51,7 +52,6 @@ var _ = Describe("backup integration create statement tests", func() {
 
 			Expect(len(resultSchemas)).To(Equal(1))
 			testutils.ExpectStructsToMatchExcluding(&schemas[0], &resultSchemas[0])
-
 		})
 	})
 

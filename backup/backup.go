@@ -137,7 +137,8 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 
 	logger.Verbose("Writing CREATE SCHEMA statements to predata file")
 	schemas := GetAllUserSchemas(connection)
-	PrintCreateSchemaStatements(predataFile, schemas)
+	schemaMetadata := GetMetadataForObjectType(connection, "", "nspacl", "nspowner", "pg_namespace")
+	PrintCreateSchemaStatements(predataFile, schemas, schemaMetadata)
 
 	types := GetTypeDefinitions(connection)
 	logger.Verbose("Writing CREATE TYPE statements for shell types to predata file")

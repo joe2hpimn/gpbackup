@@ -33,8 +33,6 @@ var (
 type Schema struct {
 	SchemaOid  uint32
 	SchemaName string
-	Comment    string
-	Owner      string
 }
 
 type Relation struct {
@@ -61,6 +59,9 @@ type ACL struct {
 	Trigger    bool
 	Usage      bool
 	Execute    bool
+	Create     bool
+	CreateTemp bool
+	Connect    bool
 }
 
 /*
@@ -84,17 +85,9 @@ func MakeFQN(schema string, object string) string {
 
 /*
  * The following functions create structs with reasonable default values set,
- * for use in SchemaFromString and RelationFromString and to make creating
- * sample structs in tests easier.
+ * for use in RelationFromString and to make creating sample structs in tests
+ * easier.
  */
-func BasicSchema(schema string) Schema {
-	return Schema{
-		SchemaOid:  0,
-		SchemaName: schema,
-		Comment:    "",
-		Owner:      "",
-	}
-}
 
 func BasicRelation(schema string, relation string) Relation {
 	return Relation{
@@ -115,8 +108,11 @@ func DefaultACLForType(grantee string, objType string) ACL {
 		Truncate:   objType == "TABLE" || objType == "VIEW",
 		References: objType == "TABLE" || objType == "VIEW",
 		Trigger:    objType == "TABLE" || objType == "VIEW",
-		Usage:      objType == "LANGUAGE" || objType == "SEQUENCE",
+		Usage:      objType == "LANGUAGE" || objType == "SCHEMA" || objType == "SEQUENCE",
 		Execute:    objType == "FUNCTION",
+		Create:     objType == "SCHEMA",
+		CreateTemp: false,
+		Connect:    false,
 	}
 }
 
@@ -197,7 +193,7 @@ func SchemaFromString(name string) Schema {
 	} else {
 		logger.Fatal(errors.Errorf("\"%s\" is not a valid identifier", name), "")
 	}
-	return BasicSchema(schema)
+	return Schema{0, schema}
 }
 
 func ParseACL(aclStr string) *ACL {
@@ -234,8 +230,11 @@ func ParseACL(aclStr string) *ACL {
 			case 'U':
 				acl.Usage = true
 			case 'C':
+				acl.Create = true
 			case 'T':
+				acl.CreateTemp = true
 			case 'c':
+				acl.Connect = true
 			}
 		}
 		acl.Grantee = grantee
@@ -274,6 +273,8 @@ func (obj ObjectMetadata) GetPrivilegesStatements(objectName string, objectType 
 				hasAllPrivileges = acl.Execute
 			case "LANGUAGE":
 				hasAllPrivileges = acl.Usage
+			case "SCHEMA":
+				hasAllPrivileges = acl.Usage && acl.Create
 			case "SEQUENCE":
 				hasAllPrivileges = acl.Select && acl.Update && acl.Usage
 			case "TABLE":

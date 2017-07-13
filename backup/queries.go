@@ -48,9 +48,7 @@ func GetAllUserSchemas(connection *utils.DBConn) []utils.Schema {
 	query := fmt.Sprintf(`
 SELECT
 	oid AS schemaoid,
-	nspname AS schemaname,
-	coalesce(obj_description(oid, 'pg_namespace'), '') AS comment,
-	pg_get_userbyid(nspowner) AS owner
+	nspname AS schemaname
 FROM pg_namespace
 WHERE %s
 ORDER BY schemaname;`, nonUserSchemaFilterClause)

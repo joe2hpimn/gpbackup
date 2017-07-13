@@ -24,7 +24,7 @@ func PrintCreateFunctionStatements(predataFile io.Writer, funcDefs []QueryFuncti
 		utils.MustPrintln(predataFile, ";")
 
 		nameStr := fmt.Sprintf("%s(%s)", funcFQN, funcDef.IdentArgs)
-		PrintObjectMetadata(predataFile, funcMetadata[funcDef.FunctionOid], nameStr, "FUNCTION", "", "FUNCTION")
+		PrintObjectMetadata(predataFile, funcMetadata[funcDef.FunctionOid], nameStr, "FUNCTION")
 	}
 }
 

@@ -24,7 +24,7 @@ type Sequence struct {
  * Functions to print to the predata file
  */
 
-func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName string, objectType string, objectSuffix string, ownerType string) {
+func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName string, objectType string) {
 	utils.MustPrintf(file, obj.GetCommentStatement(objectName, objectType))
 	utils.MustPrintf(file, obj.GetOwnerStatement(objectName, objectType))
 	utils.MustPrintf(file, obj.GetPrivilegesStatements(objectName, objectType))
@@ -82,18 +82,13 @@ func PrintConstraintStatements(predataFile io.Writer, constraints []string, fkCo
 	}
 }
 
-func PrintCreateSchemaStatements(predataFile io.Writer, schemas []utils.Schema) {
+func PrintCreateSchemaStatements(predataFile io.Writer, schemas []utils.Schema, schemaMetadata map[uint32]utils.ObjectMetadata) {
 	for _, schema := range schemas {
 		utils.MustPrintln(predataFile)
 		if schema.SchemaName != "public" {
 			utils.MustPrintf(predataFile, "\nCREATE SCHEMA %s;", schema.ToString())
 		}
-		if schema.Owner != "" {
-			utils.MustPrintf(predataFile, "\nALTER SCHEMA %s OWNER TO %s;", schema.ToString(), utils.QuoteIdent(schema.Owner))
-		}
-		if schema.Comment != "" {
-			utils.MustPrintf(predataFile, "\nCOMMENT ON SCHEMA %s IS '%s';", schema.ToString(), schema.Comment)
-		}
+		PrintObjectMetadata(predataFile, schemaMetadata[schema.SchemaOid], schema.ToString(), "SCHEMA")
 	}
 }
 
@@ -145,7 +140,7 @@ func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, 
 		if owningColumn, hasColumnOwner := sequenceColumnOwners[seqFQN]; hasColumnOwner {
 			utils.MustPrintf(predataFile, "\n\nALTER SEQUENCE %s OWNED BY %s;\n", seqFQN, owningColumn)
 		}
-		PrintObjectMetadata(predataFile, sequenceMetadata[sequence.RelationOid], seqFQN, "SEQUENCE", "", "TABLE")
+		PrintObjectMetadata(predataFile, sequenceMetadata[sequence.RelationOid], seqFQN, "SEQUENCE")
 	}
 }
 
@@ -179,7 +174,7 @@ func PrintCreateLanguageStatements(predataFile io.Writer, procLangs []QueryProce
 			validatorInfo := funcInfoMap[procLang.Validator]
 			utils.MustPrintf(predataFile, "\nALTER FUNCTION %s(%s) OWNER TO %s;", validatorInfo.QualifiedName, validatorInfo.Arguments, quotedOwner)
 		}
-		PrintObjectMetadata(predataFile, procLangMetadata[procLang.LangOid], utils.QuoteIdent(procLang.Name), "LANGUAGE", "", "LANGUAGE")
+		PrintObjectMetadata(predataFile, procLangMetadata[procLang.LangOid], utils.QuoteIdent(procLang.Name), "LANGUAGE")
 		utils.MustPrintln(predataFile)
 	}
 }
@@ -188,7 +183,7 @@ func PrintCreateViewStatements(predataFile io.Writer, views []QueryViewDefinitio
 	for _, view := range views {
 		viewFQN := utils.MakeFQN(view.SchemaName, view.ViewName)
 		utils.MustPrintf(predataFile, "\n\nCREATE VIEW %s AS %s\n", viewFQN, view.Definition)
-		PrintObjectMetadata(predataFile, viewMetadata[view.ViewOid], viewFQN, "VIEW", "", "VIEW")
+		PrintObjectMetadata(predataFile, viewMetadata[view.ViewOid], viewFQN, "VIEW")
 	}
 }
 

@@ -72,12 +72,12 @@ var _ = Describe("utils/table tests", func() {
 	})
 	Describe("Schema.ToString", func() {
 		It("remains unquoted if it contains no special characters", func() {
-			testSchema := utils.BasicSchema(`schemaname`)
+			testSchema := utils.Schema{0, `schemaname`}
 			expected := `schemaname`
 			Expect(testSchema.ToString()).To(Equal(expected))
 		})
 		It("is quoted if it contains special characters", func() {
-			testSchema := utils.BasicSchema(`schema,name`)
+			testSchema := utils.Schema{0, `schema,name`}
 			expected := `"schema,name"`
 			Expect(testSchema.ToString()).To(Equal(expected))
 		})
@@ -155,10 +155,10 @@ var _ = Describe("utils/table tests", func() {
 	Describe("GetUniqueSchemas", func() {
 		alphabeticalAFoo := utils.Relation{1, 0, "otherschema", "foo"}
 		alphabeticalABar := utils.Relation{1, 0, "otherschema", "bar"}
-		schemaOther := utils.Schema{2, "otherschema", "", ""}
+		schemaOther := utils.Schema{2, "otherschema"}
 		alphabeticalBFoo := utils.Relation{2, 0, "public", "foo"}
 		alphabeticalBBar := utils.Relation{2, 0, "public", "bar"}
-		schemaPublic := utils.Schema{1, "public", "Standard public schema", ""}
+		schemaPublic := utils.Schema{1, "public"}
 		schemas := []utils.Schema{schemaOther, schemaPublic}
 
 		It("has multiple tables in a single schema", func() {

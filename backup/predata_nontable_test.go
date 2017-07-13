@@ -150,21 +150,21 @@ COMMENT ON CONSTRAINT tablename_i_key ON public.tablename IS 'This is a constrai
 		privileges := []utils.ACL{hasAllPrivileges, hasMostPrivileges, hasSinglePrivilege}
 		It("prints a block with a table comment", func() {
 			tableMetadata := utils.ObjectMetadata{Comment: "This is a table comment."}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 COMMENT ON TABLE public.tablename IS 'This is a table comment.';`)
 		})
 		It("prints an ALTER TABLE ... OWNER TO statement to set the table owner", func() {
 			tableMetadata := utils.ObjectMetadata{Owner: "testrole"}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 ALTER TABLE public.tablename OWNER TO testrole;`)
 		})
 		It("prints a block of REVOKE and GRANT statements", func() {
 			tableMetadata := utils.ObjectMetadata{Privileges: privileges}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 REVOKE ALL ON TABLE public.tablename FROM PUBLIC;
@@ -174,7 +174,7 @@ GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 		It("prints both an ALTER TABLE ... OWNER TO statement and a table comment", func() {
 			tableMetadata := utils.ObjectMetadata{Comment: "This is a table comment.", Owner: "testrole"}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 COMMENT ON TABLE public.tablename IS 'This is a table comment.';
@@ -184,7 +184,7 @@ ALTER TABLE public.tablename OWNER TO testrole;`)
 		})
 		It("prints both a block of REVOKE and GRANT statements and an ALTER TABLE ... OWNER TO statement", func() {
 			tableMetadata := utils.ObjectMetadata{Privileges: privileges, Owner: "testrole"}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 ALTER TABLE public.tablename OWNER TO testrole;
@@ -198,7 +198,7 @@ GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 		It("prints both a block of REVOKE and GRANT statements and a table comment", func() {
 			tableMetadata := utils.ObjectMetadata{Privileges: privileges, Comment: "This is a table comment."}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 COMMENT ON TABLE public.tablename IS 'This is a table comment.';
@@ -211,7 +211,7 @@ GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 		It("prints REVOKE and GRANT statements, an ALTER TABLE ... OWNER TO statement, and comments", func() {
 			tableMetadata := utils.ObjectMetadata{Privileges: privileges, Owner: "testrole", Comment: "This is a table comment."}
-			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE", "", "TABLE")
+			backup.PrintObjectMetadata(buffer, tableMetadata, "public.tablename", "TABLE")
 			testutils.ExpectRegexp(buffer, `
 
 COMMENT ON TABLE public.tablename IS 'This is a table comment.';
@@ -395,18 +395,29 @@ GRANT ALL ON SEQUENCE public.seq_name TO testrole;`)
 		})
 	})
 	Describe("PrintCreateSchemaStatements", func() {
-		It("can print schema with comments", func() {
-			schemas := []utils.Schema{{0, "schema_with_comments", "This is a comment.", ""}}
+		It("can print a basic schema", func() {
+			schemas := []utils.Schema{utils.Schema{0, "schemaname"}}
+			emptyMetadataMap := map[uint32]utils.ObjectMetadata{}
 
-			backup.PrintCreateSchemaStatements(buffer, schemas)
-			testutils.ExpectRegexp(buffer, `CREATE SCHEMA schema_with_comments;
-COMMENT ON SCHEMA schema_with_comments IS 'This is a comment.';`)
+			backup.PrintCreateSchemaStatements(buffer, schemas, emptyMetadataMap)
+			testutils.ExpectRegexp(buffer, `CREATE SCHEMA schemaname;`)
 		})
-		It("can print schema with no comments", func() {
-			schemas := []utils.Schema{utils.BasicSchema("schema_with_no_comments")}
+		It("can print a schema with privileges, an owner, and a comment", func() {
+			schemas := []utils.Schema{{1, "schemaname"}}
+			schemaMetadataMap := testutils.DefaultMetadataMap("SCHEMA")
 
-			backup.PrintCreateSchemaStatements(buffer, schemas)
-			testutils.ExpectRegexp(buffer, `CREATE SCHEMA schema_with_no_comments;`)
+			backup.PrintCreateSchemaStatements(buffer, schemas, schemaMetadataMap)
+			testutils.ExpectRegexp(buffer, `CREATE SCHEMA schemaname;
+
+COMMENT ON SCHEMA schemaname IS 'This is a schema comment.';
+
+
+ALTER SCHEMA schemaname OWNER TO testrole;
+
+
+REVOKE ALL ON SCHEMA schemaname FROM PUBLIC;
+REVOKE ALL ON SCHEMA schemaname FROM testrole;
+GRANT ALL ON SCHEMA schemaname TO testrole;`)
 		})
 	})
 	Describe("PrintCreateLanguageStatements", func() {
