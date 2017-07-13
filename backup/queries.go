@@ -694,34 +694,21 @@ type QueryObjectMetadata struct {
 }
 
 func GetMetadataForObjectType(connection *utils.DBConn, schemaField string, aclField string, ownerField string, catalogTable string) map[uint32]utils.ObjectMetadata {
-	schemaStr := ""
-	if schemaField != "" {
-		schemaStr = fmt.Sprintf(`
-JOIN pg_namespace n ON o.%s = n.oid
-WHERE %s`, schemaField, nonUserSchemaFilterClause)
-	}
-	aclStr := `''`
-	if aclField != "" {
-		aclStr = fmt.Sprintf(`CASE
-		WHEN o.%s IS NULL THEN ''
-		WHEN array_length(o.%s, 1) = 0 THEN 'GRANTEE=/GRANTOR'
-		ELSE unnest(o.%s)::text
-	END`, aclField, aclField, aclField)
-	}
-	ownerStr := `''`
-	if ownerField != "" {
-		ownerStr = fmt.Sprintf(`pg_get_userbyid(o.%s)`, ownerField)
-	}
 	query := fmt.Sprintf(`
 SELECT
 	o.oid AS objectOid,
-	%s AS privileges,
-	%s AS owner,
+	CASE
+		WHEN o.%s IS NULL THEN ''
+		WHEN array_length(o.%s, 1) = 0 THEN 'GRANTEE=/GRANTOR'
+		ELSE unnest(o.%s)::text
+	END AS privileges,
+	pg_get_userbyid(o.%s) AS owner,
 	coalesce(obj_description(o.oid, '%s'), '') AS comment
 FROM %s o
-%s
+JOIN pg_namespace n ON o.%s = n.oid
+WHERE %s
 ORDER BY o.oid, privileges;
-`, aclStr, ownerStr, catalogTable, catalogTable, schemaStr)
+`, aclField, aclField, aclField, ownerField, catalogTable, catalogTable, schemaField, nonUserSchemaFilterClause)
 
 	results := make([]QueryObjectMetadata, 0)
 	err := connection.Select(&results, query)
@@ -892,20 +879,21 @@ WHERE l.lanispl='t';
 }
 
 type QueryViewDefinition struct {
+	ViewOid    uint32
 	SchemaName string
 	ViewName   string
 	Definition string
-	Comment    string
 }
 
 func GetViewDefinitions(connection *utils.DBConn) []QueryViewDefinition {
 	results := make([]QueryViewDefinition, 0)
 
 	query := fmt.Sprintf(`
-SELECT n.nspname AS schemaname,
+SELECT
+	c.oid AS viewoid,
+	n.nspname AS schemaname,
 	c.relname AS viewname,
-	pg_get_viewdef(c.oid) AS definition,
-	coalesce(obj_description(c.oid, 'pg_class'), '') AS comment
+	pg_get_viewdef(c.oid) AS definition
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE c.relkind = 'v'::"char" AND %s;`, nonUserSchemaFilterClause)

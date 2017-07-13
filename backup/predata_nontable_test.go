@@ -238,13 +238,10 @@ GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		seqCycle := backup.Sequence{baseSequence, backup.QuerySequenceDefinition{"seq_name", 7, 1, 9223372036854775807, 1, 5, 42, true, true}}
 		seqStart := backup.Sequence{baseSequence, backup.QuerySequenceDefinition{"seq_name", 7, 1, 9223372036854775807, 1, 5, 42, false, false}}
 		emptyColumnOwnerMap := make(map[string]string, 0)
-		emptyACL := []utils.ACL{}
+		columnOwnerMap := map[string]string{"public.seq_name": "tablename.col_one"}
 		emptySequenceMetadataMap := map[uint32]utils.ObjectMetadata{}
-		sequenceCommentMetadataMap := map[uint32]utils.ObjectMetadata{
-			1: {emptyACL, "", "This is a sequence comment."},
-		}
-		sequenceOwnerMetadataMap := map[uint32]utils.ObjectMetadata{
-			1: {emptyACL, "testrole", ""},
+		sequenceMetadataMap := map[uint32]utils.ObjectMetadata{
+			1: {[]utils.ACL{utils.DefaultACLForType("testrole", "SEQUENCE")}, "testrole", "This is a sequence comment."},
 		}
 
 		It("can print a sequence with all default options", func() {
@@ -337,9 +334,9 @@ SELECT pg_catalog.setval('public.seq_name', 7, true);`)
 
 SELECT pg_catalog.setval('public.seq_name', 7, false);`)
 		})
-		It("can print a sequence with a comment", func() {
+		It("can print a sequence with privileges, an owner, and a comment", func() {
 			sequences := []backup.Sequence{seqDefault}
-			backup.PrintCreateSequenceStatements(buffer, sequences, emptyColumnOwnerMap, sequenceCommentMetadataMap)
+			backup.PrintCreateSequenceStatements(buffer, sequences, emptyColumnOwnerMap, sequenceMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE SEQUENCE public.seq_name
 	INCREMENT BY 1
 	NO MAXVALUE
@@ -349,25 +346,18 @@ SELECT pg_catalog.setval('public.seq_name', 7, false);`)
 SELECT pg_catalog.setval('public.seq_name', 7, true);
 
 
-COMMENT ON SEQUENCE public.seq_name IS 'This is a sequence comment.';`)
-		})
-		It("can print a sequence with an owner", func() {
-			sequences := []backup.Sequence{seqDefault}
-			backup.PrintCreateSequenceStatements(buffer, sequences, emptyColumnOwnerMap, sequenceOwnerMetadataMap)
-			testutils.ExpectRegexp(buffer, `CREATE SEQUENCE public.seq_name
-	INCREMENT BY 1
-	NO MAXVALUE
-	NO MINVALUE
-	CACHE 5;
-
-SELECT pg_catalog.setval('public.seq_name', 7, true);
+COMMENT ON SEQUENCE public.seq_name IS 'This is a sequence comment.';
 
 
-ALTER TABLE public.seq_name OWNER TO testrole;`)
+ALTER TABLE public.seq_name OWNER TO testrole;
+
+
+REVOKE ALL ON SEQUENCE public.seq_name FROM PUBLIC;
+REVOKE ALL ON SEQUENCE public.seq_name FROM testrole;
+GRANT ALL ON SEQUENCE public.seq_name TO testrole;`)
 		})
 		It("can print a sequence with an owning column", func() {
 			sequences := []backup.Sequence{seqDefault}
-			columnOwnerMap := map[string]string{"public.seq_name": "tablename.col_one"}
 			backup.PrintCreateSequenceStatements(buffer, sequences, columnOwnerMap, emptySequenceMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE SEQUENCE public.seq_name
 	INCREMENT BY 1
@@ -380,10 +370,9 @@ SELECT pg_catalog.setval('public.seq_name', 7, true);
 
 ALTER SEQUENCE public.seq_name OWNED BY tablename.col_one;`)
 		})
-		It("can print a sequence with an owner and an owning column", func() {
+		It("can print a sequence with privileges, an owner, a comment, and an owning column", func() {
 			sequences := []backup.Sequence{seqDefault}
-			columnOwnerMap := map[string]string{"public.seq_name": "tablename.col_one"}
-			backup.PrintCreateSequenceStatements(buffer, sequences, columnOwnerMap, sequenceOwnerMetadataMap)
+			backup.PrintCreateSequenceStatements(buffer, sequences, columnOwnerMap, sequenceMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE SEQUENCE public.seq_name
 	INCREMENT BY 1
 	NO MAXVALUE
@@ -396,7 +385,15 @@ SELECT pg_catalog.setval('public.seq_name', 7, true);
 ALTER SEQUENCE public.seq_name OWNED BY tablename.col_one;
 
 
-ALTER TABLE public.seq_name OWNER TO testrole;`)
+COMMENT ON SEQUENCE public.seq_name IS 'This is a sequence comment.';
+
+
+ALTER TABLE public.seq_name OWNER TO testrole;
+
+
+REVOKE ALL ON SEQUENCE public.seq_name FROM PUBLIC;
+REVOKE ALL ON SEQUENCE public.seq_name FROM testrole;
+GRANT ALL ON SEQUENCE public.seq_name TO testrole;`)
 		})
 	})
 	Describe("PrintCreateSchemaStatements", func() {
@@ -470,19 +467,36 @@ COMMENT ON LANGUAGE plpythonu IS 'language comment'`)
 		})
 	})
 	Describe("PrintCreateViewStatements", func() {
-		It("prints create view statement", func() {
-			viewOne := backup.QueryViewDefinition{"public", "WowZa", "SELECT rolname FROM pg_role;", ""}
-			viewTwo := backup.QueryViewDefinition{"shamwow", "shazam", "SELECT count(*) FROM pg_tables;", "this is a view comment"}
-			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewOne, viewTwo})
+		It("can print a basic view", func() {
+			viewOne := backup.QueryViewDefinition{1, "public", "WowZa", "SELECT rolname FROM pg_role;"}
+			viewTwo := backup.QueryViewDefinition{2, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
+			viewMetadataMap := map[uint32]utils.ObjectMetadata{}
+			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewOne, viewTwo}, viewMetadataMap)
+			testutils.ExpectRegexp(buffer, `CREATE VIEW public."WowZa" AS SELECT rolname FROM pg_role;
+
+
+CREATE VIEW shamwow.shazam AS SELECT count(*) FROM pg_tables;`)
+		})
+		It("can print a view with privileges, an owner, and a comment", func() {
+			viewOne := backup.QueryViewDefinition{1, "public", "WowZa", "SELECT rolname FROM pg_role;"}
+			viewTwo := backup.QueryViewDefinition{2, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
+			viewMetadataMap := map[uint32]utils.ObjectMetadata{2: {[]utils.ACL{
+				utils.DefaultACLForType("testrole", "VIEW"),
+			}, "testrole", "This is a view comment."}}
+			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewOne, viewTwo}, viewMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE VIEW public."WowZa" AS SELECT rolname FROM pg_role;
 
 
 CREATE VIEW shamwow.shazam AS SELECT count(*) FROM pg_tables;
 
-COMMENT ON VIEW shamwow.shazam IS 'this is a view comment';
-`)
-		})
 
+COMMENT ON VIEW shamwow.shazam IS 'This is a view comment.';
+
+
+REVOKE ALL ON shamwow.shazam FROM PUBLIC;
+REVOKE ALL ON shamwow.shazam FROM testrole;
+GRANT ALL ON shamwow.shazam TO testrole;`)
+		})
 	})
 	Describe("PrintExternalProtocolStatements", func() {
 		protocolUntrustedReadWrite := backup.QueryExtProtocol{"s3", "testrole", false, 1, 2, 0, ""}

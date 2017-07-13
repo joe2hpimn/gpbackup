@@ -1,15 +1,13 @@
 package integration
 
 import (
-	"github.com/greenplum-db/gpbackup/backup"
-	"github.com/greenplum-db/gpbackup/testutils"
-
 	"bytes"
+	"os"
 	"regexp"
 
+	"github.com/greenplum-db/gpbackup/backup"
+	"github.com/greenplum-db/gpbackup/testutils"
 	"github.com/greenplum-db/gpbackup/utils"
-
-	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -134,20 +132,24 @@ var _ = Describe("backup integration create statement tests", func() {
 	})
 
 	Describe("PrintCreateViewStatements", func() {
-		It("creates a view with a comment", func() {
-			viewDef := backup.QueryViewDefinition{"public", "simpleview", "SELECT pg_roles.rolname FROM pg_roles;", "this is a view comment"}
+		It("creates a view with privileges and a comment (can't specify owner in GPDB5)", func() {
+			viewDef := backup.QueryViewDefinition{1, "public", "simpleview", "SELECT pg_roles.rolname FROM pg_roles;"}
+			viewMetadata := utils.ObjectMetadata{[]utils.ACL{utils.DefaultACLForType("testrole", "VIEW")}, "testrole", "this is a view comment"}
+			viewMetadataMap := map[uint32]utils.ObjectMetadata{1: viewMetadata}
 
-			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewDef})
+			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewDef}, viewMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 			defer testutils.AssertQueryRuns(connection, "DROP VIEW simpleview")
 
 			resultViews := backup.GetViewDefinitions(connection)
+			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
+			viewDef.ViewOid = testutils.OidFromRelationName(connection, "public.simpleview")
 			Expect(len(resultViews)).To(Equal(1))
-
+			resultMetadata := resultMetadataMap[viewDef.ViewOid]
 			testutils.ExpectStructsToMatch(&viewDef, &resultViews[0])
-
+			testutils.ExpectStructsToMatch(&viewMetadata, &resultMetadata)
 		})
 	})
 

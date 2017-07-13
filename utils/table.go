@@ -108,13 +108,13 @@ func BasicRelation(schema string, relation string) Relation {
 func DefaultACLForType(grantee string, objType string) ACL {
 	return ACL{
 		Grantee:    grantee,
-		Select:     objType == "TABLE" || objType == "SEQUENCE",
-		Insert:     objType == "TABLE",
-		Update:     objType == "TABLE" || objType == "SEQUENCE",
-		Delete:     objType == "TABLE",
-		Truncate:   objType == "TABLE",
-		References: objType == "TABLE",
-		Trigger:    objType == "TABLE",
+		Select:     objType == "TABLE" || objType == "VIEW" || objType == "SEQUENCE",
+		Insert:     objType == "TABLE" || objType == "VIEW",
+		Update:     objType == "TABLE" || objType == "VIEW" || objType == "SEQUENCE",
+		Delete:     objType == "TABLE" || objType == "VIEW",
+		Truncate:   objType == "TABLE" || objType == "VIEW",
+		References: objType == "TABLE" || objType == "VIEW",
+		Trigger:    objType == "TABLE" || objType == "VIEW",
 		Usage:      objType == "SEQUENCE",
 		Execute:    objType == "FUNCTION",
 	}
@@ -242,6 +242,108 @@ func ParseACL(aclStr string) *ACL {
 		return &acl
 	}
 	return nil
+}
+
+func (obj ObjectMetadata) GetPrivilegesStatements(objectName string, objectType string) string {
+	statements := []string{}
+	typeStr := fmt.Sprintf("%s ", objectType)
+	if objectType == "VIEW" {
+		typeStr = ""
+	}
+	if len(obj.Privileges) != 0 {
+		statements = append(statements, fmt.Sprintf("REVOKE ALL ON %s%s FROM PUBLIC;", typeStr, objectName))
+		if obj.Owner != "" {
+			statements = append(statements, fmt.Sprintf("REVOKE ALL ON %s%s FROM %s;", typeStr, objectName, QuoteIdent(obj.Owner)))
+		}
+		for _, acl := range obj.Privileges {
+			/*
+			 * Determine whether to print "GRANT ALL" instead of granting individual
+			 * privileges.  Information on which privileges exist for a given object
+			 * comes from src/include/utils/acl.h in GPDB.
+			 */
+			hasAllPrivileges := false
+			grantStr := ""
+			grantee := ""
+			if acl.Grantee == "" {
+				grantee = "PUBLIC"
+			} else {
+				grantee = QuoteIdent(acl.Grantee)
+			}
+			switch objectType {
+			case "FUNCTION":
+				hasAllPrivileges = acl.Execute
+			case "SEQUENCE":
+				hasAllPrivileges = acl.Select && acl.Update && acl.Usage
+			case "TABLE":
+				hasAllPrivileges = acl.Select && acl.Insert && acl.Update && acl.Delete && acl.Truncate && acl.References && acl.Trigger
+			case "VIEW":
+				hasAllPrivileges = acl.Select && acl.Insert && acl.Update && acl.Delete && acl.Truncate && acl.References && acl.Trigger
+			}
+			if hasAllPrivileges {
+				grantStr = "ALL"
+			} else {
+				grantList := make([]string, 0)
+				if acl.Select {
+					grantList = append(grantList, "SELECT")
+				}
+				if acl.Insert {
+					grantList = append(grantList, "INSERT")
+				}
+				if acl.Update {
+					grantList = append(grantList, "UPDATE")
+				}
+				if acl.Delete {
+					grantList = append(grantList, "DELETE")
+				}
+				if acl.Truncate {
+					grantList = append(grantList, "TRUNCATE")
+				}
+				if acl.References {
+					grantList = append(grantList, "REFERENCES")
+				}
+				if acl.Trigger {
+					grantList = append(grantList, "TRIGGER")
+				}
+				if acl.Execute {
+					grantList = append(grantList, "EXECUTE")
+				}
+				if acl.Usage {
+					grantList = append(grantList, "USAGE")
+				}
+				grantStr = strings.Join(grantList, ",")
+			}
+			if grantStr != "" {
+				statements = append(statements, fmt.Sprintf("GRANT %s ON %s%s TO %s;", grantStr, typeStr, objectName, grantee))
+			}
+		}
+	}
+	if len(statements) > 0 {
+		return "\n\n" + strings.Join(statements, "\n")
+	}
+	return ""
+}
+
+func (obj ObjectMetadata) GetOwnerStatement(objectName string, objectType string) string {
+	if objectType == "VIEW" {
+		return ""
+	}
+	typeStr := objectType
+	if objectType == "SEQUENCE" {
+		typeStr = "TABLE"
+	}
+	ownerStr := ""
+	if obj.Owner != "" {
+		ownerStr = fmt.Sprintf("\n\nALTER %s %s OWNER TO %s;\n", typeStr, objectName, QuoteIdent(obj.Owner))
+	}
+	return ownerStr
+}
+
+func (obj ObjectMetadata) GetCommentStatement(objectName string, objectType string) string {
+	commentStr := ""
+	if obj.Comment != "" {
+		commentStr = fmt.Sprintf("\n\nCOMMENT ON %s %s IS '%s';\n", objectType, objectName, obj.Comment)
+	}
+	return commentStr
 }
 
 /*

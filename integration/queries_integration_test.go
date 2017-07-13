@@ -783,6 +783,20 @@ LANGUAGE SQL`)
 			resultMetadata := resultMetadataMap[oid]
 			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
 		})
+		It("returns a slice of default metadata for a view", func() {
+			testutils.AssertQueryRuns(connection, `CREATE VIEW testview AS SELECT * FROM pg_class`)
+			defer testutils.AssertQueryRuns(connection, "DROP VIEW testview")
+			testutils.AssertQueryRuns(connection, "GRANT ALL ON testview TO testrole")
+			testutils.AssertQueryRuns(connection, "COMMENT ON VIEW testview IS 'This is a view comment.'")
+
+			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
+
+			oid := testutils.OidFromRelationName(connection, "testview")
+			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("testrole", "VIEW")}, Owner: "testrole", Comment: "This is a view comment."}
+			Expect(len(resultMetadataMap)).To(Equal(1))
+			resultMetadata := resultMetadataMap[oid]
+			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+		})
 	})
 	Describe("GetExternalTablesMap", func() {
 		It("returns empty map when there are no external tables", func() {
@@ -1111,22 +1125,10 @@ LANGUAGE SQL`)
 
 			results := backup.GetViewDefinitions(connection)
 
-			viewDef := backup.QueryViewDefinition{"public", "simpleview", "SELECT pg_roles.rolname FROM pg_roles;", ""}
+			viewDef := backup.QueryViewDefinition{1, "public", "simpleview", "SELECT pg_roles.rolname FROM pg_roles;"}
 
 			Expect(len(results)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&viewDef, &results[0])
-		})
-		It("returns a slice for a view with a comment", func() {
-			testutils.AssertQueryRuns(connection, "CREATE VIEW simpleview AS SELECT rolname FROM pg_roles")
-			defer testutils.AssertQueryRuns(connection, "DROP VIEW simpleview")
-			testutils.AssertQueryRuns(connection, "COMMENT ON VIEW simpleview IS 'this is a view comment'")
-
-			results := backup.GetViewDefinitions(connection)
-
-			viewDef := backup.QueryViewDefinition{"public", "simpleview", "SELECT pg_roles.rolname FROM pg_roles;", "this is a view comment"}
-
-			Expect(len(results)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&viewDef, &results[0])
+			testutils.ExpectStructsToMatchExcluding(&viewDef, &results[0], "ViewOid")
 		})
 	})
 	Describe("GetExternalProtocols", func() {

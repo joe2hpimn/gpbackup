@@ -66,7 +66,7 @@ ALTER FUNCTION public.func_name(integer, integer) OWNER TO testrole;
 
 REVOKE ALL ON FUNCTION public.func_name(integer, integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.func_name(integer, integer) FROM testrole;
-GRANT EXECUTE ON FUNCTION public.func_name(integer, integer) TO testrole;`)
+GRANT ALL ON FUNCTION public.func_name(integer, integer) TO testrole;`)
 			})
 		})
 		Describe("PrintFunctionBodyOrPath", func() {
