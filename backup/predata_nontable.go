@@ -24,13 +24,13 @@ type Sequence struct {
  * Functions to print to the predata file
  */
 
-func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName string, objectType string, commentSuffix string, ownerType string) {
+func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName string, objectType string, objectSuffix string, ownerType string) {
 	objectOwner := utils.QuoteIdent(obj.Owner)
 	if obj.Comment != "" {
-		utils.MustPrintf(file, "\n\nCOMMENT ON %s%s %s IS '%s';\n", objectType, commentSuffix, objectName, obj.Comment)
+		utils.MustPrintf(file, "\n\nCOMMENT ON %s%s %s IS '%s';\n", objectType, objectSuffix, objectName, obj.Comment)
 	}
 	if obj.Owner != "" {
-		utils.MustPrintf(file, "\n\nALTER %s %s OWNER TO %s;\n", ownerType, objectName, objectOwner)
+		utils.MustPrintf(file, "\n\nALTER %s%s %s OWNER TO %s;\n", ownerType, objectSuffix, objectName, objectOwner)
 	}
 	if len(obj.Privileges) != 0 {
 		utils.MustPrintf(file, "\n\nREVOKE ALL ON %s %s FROM PUBLIC;", objectType, objectName)
@@ -45,6 +45,12 @@ func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName st
 			 */
 			hasAllPrivileges := false
 			grantStr := ""
+			grantee := ""
+			if acl.Grantee == "" {
+				grantee = "PUBLIC"
+			} else {
+				grantee = utils.QuoteIdent(acl.Grantee)
+			}
 			switch objectType {
 			case "TABLE":
 				hasAllPrivileges = acl.Select && acl.Insert && acl.Update && acl.Delete && acl.Truncate && acl.References && acl.Trigger
@@ -74,13 +80,16 @@ func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName st
 				if acl.Trigger {
 					grantList = append(grantList, "TRIGGER")
 				}
+				if acl.Execute {
+					grantList = append(grantList, "EXECUTE")
+				}
 				if acl.Usage {
 					grantList = append(grantList, "USAGE")
 				}
 				grantStr = strings.Join(grantList, ",")
 			}
 			if grantStr != "" {
-				utils.MustPrintf(file, "\nGRANT %s ON %s %s TO %s;", grantStr, objectType, objectName, utils.QuoteIdent(acl.Grantee))
+				utils.MustPrintf(file, "\nGRANT %s ON %s %s TO %s;", grantStr, objectType, objectName, grantee)
 			}
 		}
 	}

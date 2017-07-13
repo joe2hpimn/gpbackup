@@ -3,6 +3,7 @@ package backup_test
 import (
 	"github.com/greenplum-db/gpbackup/backup"
 	"github.com/greenplum-db/gpbackup/testutils"
+	"github.com/greenplum-db/gpbackup/utils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -18,62 +19,54 @@ var _ = Describe("backup/predata tests", func() {
 	Describe("Functions involved in printing CREATE FUNCTION statements", func() {
 		var funcDef backup.QueryFunctionDefinition
 		funcDefs := make([]backup.QueryFunctionDefinition, 1)
-		funcDefault := backup.QueryFunctionDefinition{"public", "func_name", false, "add_two_ints", "", "integer, integer", "integer, integer", "integer",
-			"v", false, false, "", float32(1), float32(0), "", "internal", "", ""}
+		funcDefault := backup.QueryFunctionDefinition{1, "public", "func_name", false, "add_two_ints", "", "integer, integer", "integer, integer", "integer",
+			"v", false, false, "", float32(1), float32(0), "", "internal"}
 		BeforeEach(func() {
 			funcDef = funcDefault
 			funcDefs[0] = funcDef
 		})
 
 		Describe("PrintCreateFunctionStatements", func() {
-			It("prints a function definition for an internal function without a binary path", func() {
-				backup.PrintCreateFunctionStatements(buffer, funcDefs)
-				testutils.ExpectRegexp(buffer, `CREATE FUNCTION public.func_name(integer, integer) RETURNS integer AS
-$$add_two_ints$$
-LANGUAGE internal;
-`)
+			var (
+				funcMetadataMap map[uint32]utils.ObjectMetadata
+			)
+			BeforeEach(func() {
+				funcMetadataMap = map[uint32]utils.ObjectMetadata{}
 			})
-			It("prints a function definition for a function with an owner", func() {
-				funcDefs[0].Owner = "testrole"
-				backup.PrintCreateFunctionStatements(buffer, funcDefs)
+			It("prints a function definition for an internal function without a binary path", func() {
+				backup.PrintCreateFunctionStatements(buffer, funcDefs, funcMetadataMap)
 				testutils.ExpectRegexp(buffer, `CREATE FUNCTION public.func_name(integer, integer) RETURNS integer AS
 $$add_two_ints$$
 LANGUAGE internal;
-
-ALTER FUNCTION public.func_name(integer, integer) OWNER TO testrole;
 `)
 			})
 			It("prints a function definition for a function that returns a set", func() {
 				funcDefs[0].ReturnsSet = true
 				funcDefs[0].ResultType = "SETOF integer"
-				backup.PrintCreateFunctionStatements(buffer, funcDefs)
+				backup.PrintCreateFunctionStatements(buffer, funcDefs, funcMetadataMap)
 				testutils.ExpectRegexp(buffer, `CREATE FUNCTION public.func_name(integer, integer) RETURNS SETOF integer AS
 $$add_two_ints$$
 LANGUAGE internal;
 `)
 			})
-			It("prints a function definition for a function with a comment", func() {
-				funcDefs[0].Comment = "This is a function comment."
-				backup.PrintCreateFunctionStatements(buffer, funcDefs)
+			It("prints a function definition for a function with permissions, an owner, and a comment", func() {
+				funcMetadata := utils.ObjectMetadata{[]utils.ACL{utils.DefaultACLForType("testrole", "FUNCTION")}, "testrole", "This is a function comment."}
+				funcMetadataMap[1] = funcMetadata
+				backup.PrintCreateFunctionStatements(buffer, funcDefs, funcMetadataMap)
 				testutils.ExpectRegexp(buffer, `CREATE FUNCTION public.func_name(integer, integer) RETURNS integer AS
 $$add_two_ints$$
 LANGUAGE internal;
 
+
 COMMENT ON FUNCTION public.func_name(integer, integer) IS 'This is a function comment.';
-`)
-			})
-			It("prints a function definition for a function with an owner and a comment", func() {
-				funcDefs[0].Owner = "testrole"
-				funcDefs[0].Comment = "This is a function comment."
-				backup.PrintCreateFunctionStatements(buffer, funcDefs)
-				testutils.ExpectRegexp(buffer, `CREATE FUNCTION public.func_name(integer, integer) RETURNS integer AS
-$$add_two_ints$$
-LANGUAGE internal;
+
 
 ALTER FUNCTION public.func_name(integer, integer) OWNER TO testrole;
 
-COMMENT ON FUNCTION public.func_name(integer, integer) IS 'This is a function comment.';
-`)
+
+REVOKE ALL ON FUNCTION public.func_name(integer, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.func_name(integer, integer) FROM testrole;
+GRANT EXECUTE ON FUNCTION public.func_name(integer, integer) TO testrole;`)
 			})
 		})
 		Describe("PrintFunctionBodyOrPath", func() {

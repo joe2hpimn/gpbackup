@@ -429,6 +429,7 @@ ORDER BY tgname;`
 }
 
 type QueryFunctionDefinition struct {
+	FunctionOid       uint32 `db:"oid"`
 	SchemaName        string `db:"nspname"`
 	FunctionName      string `db:"proname"`
 	ReturnsSet        bool   `db:"proretset"`
@@ -445,8 +446,6 @@ type QueryFunctionDefinition struct {
 	NumRows           float32 `db:"prorows"`
 	DataAccess        string  `db:"prodataaccess"`
 	Language          string
-	Comment           string
-	Owner             string
 }
 
 func GetFunctionDefinitions(connection *utils.DBConn) []QueryFunctionDefinition {
@@ -456,6 +455,7 @@ func GetFunctionDefinitions(connection *utils.DBConn) []QueryFunctionDefinition 
 	 */
 	query := fmt.Sprintf(`
 SELECT
+	p.oid,
 	nspname,
 	proname,
 	proretset,
@@ -474,9 +474,7 @@ SELECT
 	procost,
 	prorows,
 	prodataaccess,
-	(SELECT lanname FROM pg_catalog.pg_language WHERE oid = prolang) AS language,
-	coalesce(obj_description(p.oid, 'pg_proc'), '') AS comment,
-	pg_get_userbyid(proowner) AS owner
+	(SELECT lanname FROM pg_catalog.pg_language WHERE oid = prolang) AS language
 FROM pg_proc p
 LEFT JOIN pg_namespace n
 	ON p.pronamespace = n.oid
@@ -696,21 +694,34 @@ type QueryObjectMetadata struct {
 }
 
 func GetMetadataForObjectType(connection *utils.DBConn, schemaField string, aclField string, ownerField string, catalogTable string) map[uint32]utils.ObjectMetadata {
-	query := fmt.Sprintf(`
-SELECT
-	o.oid AS objectOid,
-	CASE
+	schemaStr := ""
+	if schemaField != "" {
+		schemaStr = fmt.Sprintf(`
+JOIN pg_namespace n ON o.%s = n.oid
+WHERE %s`, schemaField, nonUserSchemaFilterClause)
+	}
+	aclStr := `''`
+	if aclField != "" {
+		aclStr = fmt.Sprintf(`CASE
 		WHEN o.%s IS NULL THEN ''
 		WHEN array_length(o.%s, 1) = 0 THEN 'GRANTEE=/GRANTOR'
 		ELSE unnest(o.%s)::text
-	END AS privileges,
-	pg_get_userbyid(o.%s) AS owner,
+	END`, aclField, aclField, aclField)
+	}
+	ownerStr := `''`
+	if ownerField != "" {
+		ownerStr = fmt.Sprintf(`pg_get_userbyid(o.%s)`, ownerField)
+	}
+	query := fmt.Sprintf(`
+SELECT
+	o.oid AS objectOid,
+	%s AS privileges,
+	%s AS owner,
 	coalesce(obj_description(o.oid, '%s'), '') AS comment
 FROM %s o
-JOIN pg_namespace n ON o.%s = n.oid
-WHERE %s
+%s
 ORDER BY o.oid, privileges;
-`, aclField, aclField, aclField, ownerField, catalogTable, catalogTable, schemaField, nonUserSchemaFilterClause)
+`, aclStr, ownerStr, catalogTable, catalogTable, schemaStr)
 
 	results := make([]QueryObjectMetadata, 0)
 	err := connection.Select(&results, query)

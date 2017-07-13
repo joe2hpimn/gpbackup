@@ -60,6 +60,7 @@ type ACL struct {
 	References bool
 	Trigger    bool
 	Usage      bool
+	Execute    bool
 }
 
 /*
@@ -115,6 +116,7 @@ func DefaultACLForType(grantee string, objType string) ACL {
 		References: objType == "TABLE",
 		Trigger:    objType == "TABLE",
 		Usage:      objType == "SEQUENCE",
+		Execute:    objType == "FUNCTION",
 	}
 }
 
@@ -136,6 +138,8 @@ func DefaultACLWithout(grantee string, objType string, revoke ...string) ACL {
 			defaultACL.References = false
 		case "TRIGGER":
 			defaultACL.Trigger = false
+		case "EXECUTE":
+			defaultACL.Execute = false
 		case "USAGE":
 			defaultACL.Usage = false
 		}
@@ -206,7 +210,7 @@ func ParseACL(aclStr string) *ACL {
 		} else if matches[2] != "" {
 			grantee = matches[2]
 		} else {
-			return nil
+			grantee = "" // Empty string indicates privileges granted to PUBLIC
 		}
 		permStr := matches[3]
 		for _, char := range permStr {
@@ -226,6 +230,7 @@ func ParseACL(aclStr string) *ACL {
 			case 't':
 				acl.Trigger = true
 			case 'X':
+				acl.Execute = true
 			case 'U':
 				acl.Usage = true
 			case 'C':

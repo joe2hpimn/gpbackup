@@ -146,7 +146,7 @@ COMMENT ON CONSTRAINT tablename_i_key ON public.tablename IS 'This is a constrai
 		hasAllPrivileges := utils.DefaultACLForType("gpadmin", "TABLE")
 		hasMostPrivileges := utils.DefaultACLForType("testrole", "TABLE")
 		hasMostPrivileges.Trigger = false
-		hasSinglePrivilege := utils.ACL{Grantee: "trigger_role", Trigger: true}
+		hasSinglePrivilege := utils.ACL{Grantee: "", Trigger: true}
 		privileges := []utils.ACL{hasAllPrivileges, hasMostPrivileges, hasSinglePrivilege}
 		It("prints a block with a table comment", func() {
 			tableMetadata := utils.ObjectMetadata{Comment: "This is a table comment."}
@@ -170,7 +170,7 @@ ALTER TABLE public.tablename OWNER TO testrole;`)
 REVOKE ALL ON TABLE public.tablename FROM PUBLIC;
 GRANT ALL ON TABLE public.tablename TO gpadmin;
 GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES ON TABLE public.tablename TO testrole;
-GRANT TRIGGER ON TABLE public.tablename TO trigger_role;`)
+GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 		It("prints both an ALTER TABLE ... OWNER TO statement and a table comment", func() {
 			tableMetadata := utils.ObjectMetadata{Comment: "This is a table comment.", Owner: "testrole"}
@@ -194,7 +194,7 @@ REVOKE ALL ON TABLE public.tablename FROM PUBLIC;
 REVOKE ALL ON TABLE public.tablename FROM testrole;
 GRANT ALL ON TABLE public.tablename TO gpadmin;
 GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES ON TABLE public.tablename TO testrole;
-GRANT TRIGGER ON TABLE public.tablename TO trigger_role;`)
+GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 		It("prints both a block of REVOKE and GRANT statements and a table comment", func() {
 			tableMetadata := utils.ObjectMetadata{Privileges: privileges, Comment: "This is a table comment."}
@@ -207,7 +207,7 @@ COMMENT ON TABLE public.tablename IS 'This is a table comment.';
 REVOKE ALL ON TABLE public.tablename FROM PUBLIC;
 GRANT ALL ON TABLE public.tablename TO gpadmin;
 GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES ON TABLE public.tablename TO testrole;
-GRANT TRIGGER ON TABLE public.tablename TO trigger_role;`)
+GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 		It("prints REVOKE and GRANT statements, an ALTER TABLE ... OWNER TO statement, and comments", func() {
 			tableMetadata := utils.ObjectMetadata{Privileges: privileges, Owner: "testrole", Comment: "This is a table comment."}
@@ -224,7 +224,7 @@ REVOKE ALL ON TABLE public.tablename FROM PUBLIC;
 REVOKE ALL ON TABLE public.tablename FROM testrole;
 GRANT ALL ON TABLE public.tablename TO gpadmin;
 GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES ON TABLE public.tablename TO testrole;
-GRANT TRIGGER ON TABLE public.tablename TO trigger_role;`)
+GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		})
 	})
 	Describe("PrintCreateSequenceStatements", func() {

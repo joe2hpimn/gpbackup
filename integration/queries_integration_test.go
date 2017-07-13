@@ -756,13 +756,29 @@ CYCLE`)
 		It("returns a slice of default metadata for a sequence", func() {
 			testutils.AssertQueryRuns(connection, "CREATE SEQUENCE testsequence")
 			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE testsequence")
-			testutils.AssertQueryRuns(connection, "GRANT ALL ON SEQUENCE testsequence TO testrole")
+			testutils.AssertQueryRuns(connection, "REVOKE UPDATE ON SEQUENCE testsequence FROM testrole")
 			testutils.AssertQueryRuns(connection, "COMMENT ON SEQUENCE testsequence IS 'This is a sequence comment.'")
 
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
 			oid := testutils.OidFromRelationName(connection, "testsequence")
-			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("testrole", "SEQUENCE")}, Owner: "testrole", Comment: "This is a sequence comment."}
+			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLWithout("testrole", "SEQUENCE", "UPDATE")}, Owner: "testrole", Comment: "This is a sequence comment."}
+			Expect(len(resultMetadataMap)).To(Equal(1))
+			resultMetadata := resultMetadataMap[oid]
+			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+		})
+		It("returns a slice of default metadata for a function", func() {
+			testutils.AssertQueryRuns(connection, `CREATE FUNCTION add(integer, integer) RETURNS integer
+AS 'SELECT $1 + $2'
+LANGUAGE SQL`)
+			defer testutils.AssertQueryRuns(connection, "DROP FUNCTION add(integer, integer)")
+			testutils.AssertQueryRuns(connection, "REVOKE ALL ON FUNCTION add(integer, integer) FROM testrole")
+			testutils.AssertQueryRuns(connection, "COMMENT ON FUNCTION add(integer, integer) IS 'This is a function comment.'")
+
+			resultMetadataMap := backup.GetMetadataForObjectType(connection, "pronamespace", "proacl", "proowner", "pg_proc")
+
+			oid := testutils.OidFromFunctionName(connection, "add")
+			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("", "FUNCTION")}, Owner: "testrole", Comment: "This is a function comment."}
 			Expect(len(resultMetadataMap)).To(Equal(1))
 			resultMetadata := resultMetadataMap[oid]
 			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
@@ -976,16 +992,16 @@ MODIFIES SQL DATA
 				SchemaName: "public", FunctionName: "add", ReturnsSet: false, FunctionBody: "SELECT $1 + $2",
 				BinaryPath: "", Arguments: "integer, integer", IdentArgs: "integer, integer", ResultType: "integer",
 				Volatility: "v", IsStrict: false, IsSecurityDefiner: false, Config: "", Cost: 100, NumRows: 0, DataAccess: "c",
-				Language: "sql", Comment: "", Owner: "testrole"}
+				Language: "sql"}
 			appendFunction := backup.QueryFunctionDefinition{
 				SchemaName: "public", FunctionName: "append", ReturnsSet: true, FunctionBody: "SELECT ($1, $2)",
 				BinaryPath: "", Arguments: "integer, integer", IdentArgs: "integer, integer", ResultType: "SETOF record",
 				Volatility: "s", IsStrict: true, IsSecurityDefiner: true, Config: "SET search_path TO pg_temp", Cost: 200,
-				NumRows: 200, DataAccess: "m", Language: "sql", Comment: "this is a function comment", Owner: "testrole"}
+				NumRows: 200, DataAccess: "m", Language: "sql"}
 
 			Expect(len(results)).To(Equal(2))
-			testutils.ExpectStructsToMatch(&results[0], &addFunction)
-			testutils.ExpectStructsToMatch(&results[1], &appendFunction)
+			testutils.ExpectStructsToMatchExcluding(&results[0], &addFunction, "FunctionOid")
+			testutils.ExpectStructsToMatchExcluding(&results[1], &appendFunction, "FunctionOid")
 		})
 	})
 	Describe("GetAggregateDefinitions", func() {
