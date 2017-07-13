@@ -240,9 +240,7 @@ GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		emptyColumnOwnerMap := make(map[string]string, 0)
 		columnOwnerMap := map[string]string{"public.seq_name": "tablename.col_one"}
 		emptySequenceMetadataMap := map[uint32]utils.ObjectMetadata{}
-		sequenceMetadataMap := map[uint32]utils.ObjectMetadata{
-			1: {[]utils.ACL{utils.DefaultACLForType("testrole", "SEQUENCE")}, "testrole", "This is a sequence comment."},
-		}
+		sequenceMetadataMap := testutils.DefaultMetadataMap("SEQUENCE")
 
 		It("can print a sequence with all default options", func() {
 			sequences := []backup.Sequence{seqDefault}
@@ -412,64 +410,69 @@ COMMENT ON SCHEMA schema_with_comments IS 'This is a comment.';`)
 		})
 	})
 	Describe("PrintCreateLanguageStatements", func() {
-		plUntrustedHandlerOnly := backup.QueryProceduralLanguage{"plpythonu", "testrole", true, false, 4, 0, 0, "", ""}
-		plAllFields := backup.QueryProceduralLanguage{"plpgsql", "testrole", true, true, 1, 2, 3, "", ""}
-		plComment := backup.QueryProceduralLanguage{"plpythonu", "testrole", true, false, 4, 0, 0, "", "language comment"}
+		plUntrustedHandlerOnly := backup.QueryProceduralLanguage{1, "plpythonu", "testrole", true, false, 4, 0, 0}
+		plAllFields := backup.QueryProceduralLanguage{1, "plpgsql", "testrole", true, true, 1, 2, 3}
+		plComment := backup.QueryProceduralLanguage{1, "plpythonu", "testrole", true, false, 4, 0, 0}
 		funcInfoMap := map[uint32]backup.FunctionInfo{
 			1: {QualifiedName: "pg_catalog.plpgsql_call_handler", Arguments: "", IsInternal: true},
 			2: {QualifiedName: "pg_catalog.plpgsql_inline_handler", Arguments: "internal", IsInternal: true},
 			3: {QualifiedName: "pg_catalog.plpgsql_validator", Arguments: "oid", IsInternal: true},
 			4: {QualifiedName: "pg_catalog.plpython_call_handler", Arguments: "", IsInternal: true},
 		}
+		emptyMetadataMap := map[uint32]utils.ObjectMetadata{}
 
 		It("prints untrusted language with a handler only", func() {
 			langs := []backup.QueryProceduralLanguage{plUntrustedHandlerOnly}
 
-			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap)
+			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap, emptyMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE PROCEDURAL LANGUAGE plpythonu;
-ALTER FUNCTION pg_catalog.plpython_call_handler() OWNER TO testrole;
-ALTER LANGUAGE plpythonu OWNER TO testrole;`)
+ALTER FUNCTION pg_catalog.plpython_call_handler() OWNER TO testrole;`)
 		})
-		It("prints trusted language with handler, inline, validator, and comments", func() {
+		It("prints trusted language with handler, inline, and validator", func() {
 			langs := []backup.QueryProceduralLanguage{plAllFields}
 
-			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap)
+			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap, emptyMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE TRUSTED PROCEDURAL LANGUAGE plpgsql;
 ALTER FUNCTION pg_catalog.plpgsql_call_handler() OWNER TO testrole;
 ALTER FUNCTION pg_catalog.plpgsql_inline_handler(internal) OWNER TO testrole;
-ALTER FUNCTION pg_catalog.plpgsql_validator(oid) OWNER TO testrole;
-ALTER LANGUAGE plpgsql OWNER TO testrole;`)
+ALTER FUNCTION pg_catalog.plpgsql_validator(oid) OWNER TO testrole;`)
 		})
 		It("prints multiple create language statements", func() {
 			langs := []backup.QueryProceduralLanguage{plUntrustedHandlerOnly, plAllFields}
 
-			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap)
+			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap, emptyMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE PROCEDURAL LANGUAGE plpythonu;
 ALTER FUNCTION pg_catalog.plpython_call_handler() OWNER TO testrole;
-ALTER LANGUAGE plpythonu OWNER TO testrole;
 
 
 CREATE TRUSTED PROCEDURAL LANGUAGE plpgsql;
 ALTER FUNCTION pg_catalog.plpgsql_call_handler() OWNER TO testrole;
 ALTER FUNCTION pg_catalog.plpgsql_inline_handler(internal) OWNER TO testrole;
-ALTER FUNCTION pg_catalog.plpgsql_validator(oid) OWNER TO testrole;
-ALTER LANGUAGE plpgsql OWNER TO testrole;`)
+ALTER FUNCTION pg_catalog.plpgsql_validator(oid) OWNER TO testrole;`)
 		})
-		It("prints language with comment", func() {
+		It("prints a language with privileges, an owner, and a comment", func() {
 			langs := []backup.QueryProceduralLanguage{plComment}
+			langMetadataMap := testutils.DefaultMetadataMap("LANGUAGE")
 
-			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap)
+			backup.PrintCreateLanguageStatements(buffer, langs, funcInfoMap, langMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE PROCEDURAL LANGUAGE plpythonu;
 ALTER FUNCTION pg_catalog.plpython_call_handler() OWNER TO testrole;
+
+COMMENT ON LANGUAGE plpythonu IS 'This is a language comment.';
+
+
 ALTER LANGUAGE plpythonu OWNER TO testrole;
 
-COMMENT ON LANGUAGE plpythonu IS 'language comment'`)
+
+REVOKE ALL ON LANGUAGE plpythonu FROM PUBLIC;
+REVOKE ALL ON LANGUAGE plpythonu FROM testrole;
+GRANT ALL ON LANGUAGE plpythonu TO testrole;`)
 		})
 	})
 	Describe("PrintCreateViewStatements", func() {
 		It("can print a basic view", func() {
-			viewOne := backup.QueryViewDefinition{1, "public", "WowZa", "SELECT rolname FROM pg_role;"}
-			viewTwo := backup.QueryViewDefinition{2, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
+			viewOne := backup.QueryViewDefinition{0, "public", "WowZa", "SELECT rolname FROM pg_role;"}
+			viewTwo := backup.QueryViewDefinition{1, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
 			viewMetadataMap := map[uint32]utils.ObjectMetadata{}
 			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewOne, viewTwo}, viewMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE VIEW public."WowZa" AS SELECT rolname FROM pg_role;
@@ -478,11 +481,9 @@ COMMENT ON LANGUAGE plpythonu IS 'language comment'`)
 CREATE VIEW shamwow.shazam AS SELECT count(*) FROM pg_tables;`)
 		})
 		It("can print a view with privileges, an owner, and a comment", func() {
-			viewOne := backup.QueryViewDefinition{1, "public", "WowZa", "SELECT rolname FROM pg_role;"}
-			viewTwo := backup.QueryViewDefinition{2, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
-			viewMetadataMap := map[uint32]utils.ObjectMetadata{2: {[]utils.ACL{
-				utils.DefaultACLForType("testrole", "VIEW"),
-			}, "testrole", "This is a view comment."}}
+			viewOne := backup.QueryViewDefinition{0, "public", "WowZa", "SELECT rolname FROM pg_role;"}
+			viewTwo := backup.QueryViewDefinition{1, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
+			viewMetadataMap := testutils.DefaultMetadataMap("VIEW")
 			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewOne, viewTwo}, viewMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE VIEW public."WowZa" AS SELECT rolname FROM pg_role;
 

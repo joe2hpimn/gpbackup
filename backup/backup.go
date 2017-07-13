@@ -146,7 +146,8 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 	funcInfoMap := GetFunctionOidToInfoMap(connection)
 	logger.Verbose("Writing CREATE PROCEDURAL LANGUAGE statements to predata file")
 	procLangs := GetProceduralLanguages(connection)
-	PrintCreateLanguageStatements(predataFile, procLangs, funcInfoMap)
+	procLangMetadata := GetMetadataForObjectType(connection, "lannamespace", "lanacl", "lanowner", "pg_language")
+	PrintCreateLanguageStatements(predataFile, procLangs, funcInfoMap, procLangMetadata)
 
 	logger.Verbose("Writing CREATE TYPE statements for composite and enum types to predata file")
 	PrintCreateCompositeAndEnumTypeStatements(predataFile, types)

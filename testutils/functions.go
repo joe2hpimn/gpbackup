@@ -18,7 +18,7 @@ import (
 )
 
 /*
- * Functions for setting up the test environment and mocking out global variables
+ * Functions for setting up the test environment and mocking out variables
  */
 
 func CreateAndConnectMockDB() (*utils.DBConn, sqlmock.Sqlmock) {
@@ -61,6 +61,16 @@ func SetDefaultSegmentConfiguration() {
 	configSegOne := utils.QuerySegConfig{0, "localhost", "/data/gpseg0"}
 	configSegTwo := utils.QuerySegConfig{1, "localhost", "/data/gpseg1"}
 	utils.SetupSegmentConfiguration([]utils.QuerySegConfig{configMaster, configSegOne, configSegTwo})
+}
+
+func DefaultMetadataMap(objType string) map[uint32]utils.ObjectMetadata {
+	return map[uint32]utils.ObjectMetadata{
+		1: {
+			[]utils.ACL{utils.DefaultACLForType("testrole", objType)},
+			"testrole",
+			fmt.Sprintf("This is a %s comment.", strings.ToLower(objType)),
+		},
+	}
 }
 
 /*
@@ -109,16 +119,24 @@ func OidFromRelationName(dbconn *utils.DBConn, relname string) uint32 {
 	return uint32(oid)
 }
 
-func OidFromFunctionName(dbconn *utils.DBConn, relname string) uint32 {
-	oidQuery := fmt.Sprintf("SELECT '%s'::regproc::oid as string", relname)
+func OidFromFunctionName(dbconn *utils.DBConn, proname string) uint32 {
+	oidQuery := fmt.Sprintf("SELECT '%s'::regproc::oid as string", proname)
 	oidString := backup.SelectString(dbconn, oidQuery)
 	oid, err := strconv.ParseUint(oidString, 10, 32)
 	Expect(err).To(BeNil())
 	return uint32(oid)
 }
 
-func OidFromRoleName(dbconn *utils.DBConn, relname string) uint32 {
-	oidQuery := fmt.Sprintf("SELECT oid as string FROM pg_authid WHERE rolname='%s'", relname)
+func OidFromLanguageName(dbconn *utils.DBConn, lanname string) uint32 {
+	oidQuery := fmt.Sprintf("SELECT oid AS string FROM pg_language WHERE lanname='%s'", lanname)
+	oidString := backup.SelectString(dbconn, oidQuery)
+	oid, err := strconv.ParseUint(oidString, 10, 32)
+	Expect(err).To(BeNil())
+	return uint32(oid)
+}
+
+func OidFromRoleName(dbconn *utils.DBConn, rolname string) uint32 {
+	oidQuery := fmt.Sprintf("SELECT oid AS string FROM pg_authid WHERE rolname='%s'", rolname)
 	oidString := backup.SelectString(dbconn, oidQuery)
 	oid, err := strconv.ParseUint(oidString, 10, 32)
 	Expect(err).To(BeNil())

@@ -561,24 +561,25 @@ CYCLE`)
 	})
 	Describe("GetProceduralLanguages", func() {
 		It("returns a slice of procedural languages", func() {
-			testutils.AssertQueryRuns(connection, "CREATE LANGUAGE plpythonu")
-			defer testutils.AssertQueryRuns(connection, "DROP LANGUAGE plpythonu")
+			testutils.AssertQueryRuns(connection, "CREATE LANGUAGE plperl")
+			defer testutils.AssertQueryRuns(connection, "DROP LANGUAGE plperl")
 
 			pgsqlHandlerOid := testutils.OidFromFunctionName(connection, "plpgsql_call_handler")
 			pgsqlInlineOid := testutils.OidFromFunctionName(connection, "plpgsql_inline_handler")
 			pgsqlValidatorOid := testutils.OidFromFunctionName(connection, "plpgsql_validator")
 
-			pythonHandlerOid := testutils.OidFromFunctionName(connection, "plpython_call_handler")
-			pythonInlineOid := testutils.OidFromFunctionName(connection, "plpython_inline_handler")
+			perlHandlerOid := testutils.OidFromFunctionName(connection, "plperl_call_handler")
+			perlInlineOid := testutils.OidFromFunctionName(connection, "plperl_inline_handler")
+			perlValidatorOid := testutils.OidFromFunctionName(connection, "plperl_validator")
 
-			expectedPlpgsqlInfo := backup.QueryProceduralLanguage{"plpgsql", "testrole", true, true, pgsqlHandlerOid, pgsqlInlineOid, pgsqlValidatorOid, "", ""}
-			expectedPlpythonuInfo := backup.QueryProceduralLanguage{"plpythonu", "testrole", true, false, pythonHandlerOid, pythonInlineOid, 0, "", ""}
+			expectedPlpgsqlInfo := backup.QueryProceduralLanguage{0, "plpgsql", "testrole", true, true, pgsqlHandlerOid, pgsqlInlineOid, pgsqlValidatorOid}
+			expectedPlperlInfo := backup.QueryProceduralLanguage{1, "plperl", "testrole", true, true, perlHandlerOid, perlInlineOid, perlValidatorOid}
 
 			resultProcLangs := backup.GetProceduralLanguages(connection)
 
 			Expect(len(resultProcLangs)).To(Equal(2))
-			testutils.ExpectStructsToMatchExcluding(&expectedPlpgsqlInfo, &resultProcLangs[0], "Owner")
-			testutils.ExpectStructsToMatch(&resultProcLangs[1], &expectedPlpythonuInfo)
+			testutils.ExpectStructsToMatchExcluding(&expectedPlpgsqlInfo, &resultProcLangs[0], "LangOid", "Owner")
+			testutils.ExpectStructsToMatchExcluding(&expectedPlperlInfo, &resultProcLangs[1], "LangOid", "Owner")
 		})
 	})
 	Describe("GetTypeDefinitions", func() {

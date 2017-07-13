@@ -694,6 +694,11 @@ type QueryObjectMetadata struct {
 }
 
 func GetMetadataForObjectType(connection *utils.DBConn, schemaField string, aclField string, ownerField string, catalogTable string) map[uint32]utils.ObjectMetadata {
+	schemaStr := ""
+	if schemaField != "" {
+		schemaStr = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
+WHERE %s`, schemaField, nonUserSchemaFilterClause)
+	}
 	query := fmt.Sprintf(`
 SELECT
 	o.oid AS objectOid,
@@ -705,10 +710,9 @@ SELECT
 	pg_get_userbyid(o.%s) AS owner,
 	coalesce(obj_description(o.oid, '%s'), '') AS comment
 FROM %s o
-JOIN pg_namespace n ON o.%s = n.oid
-WHERE %s
+%s
 ORDER BY o.oid, privileges;
-`, aclField, aclField, aclField, ownerField, catalogTable, catalogTable, schemaField, nonUserSchemaFilterClause)
+`, aclField, aclField, aclField, ownerField, catalogTable, catalogTable, schemaStr)
 
 	results := make([]QueryObjectMetadata, 0)
 	err := connection.Select(&results, query)
@@ -847,6 +851,7 @@ WHERE datname = '%s';`, connection.DBName)
 }
 
 type QueryProceduralLanguage struct {
+	LangOid   uint32 `db:"oid"`
 	Name      string `db:"lanname"`
 	Owner     string
 	IsPl      bool   `db:"lanispl"`
@@ -854,22 +859,20 @@ type QueryProceduralLanguage struct {
 	Handler   uint32 `db:"lanplcallfoid"`
 	Inline    uint32 `db:"laninline"`
 	Validator uint32 `db:"lanvalidator"`
-	Access    string `db:"lanacl"`
-	Comment   string
 }
 
 func GetProceduralLanguages(connection *utils.DBConn) []QueryProceduralLanguage {
 	results := make([]QueryProceduralLanguage, 0)
 	query := `
-SELECT l.lanname,
+SELECT
+	oid,
+	l.lanname,
 	pg_get_userbyid(l.lanowner) as owner,
 	l.lanispl,
 	l.lanpltrusted,
 	l.lanplcallfoid::regprocedure::oid,
 	l.laninline::regprocedure::oid,
-	l.lanvalidator::regprocedure::oid,
-	coalesce(pg_catalog.array_to_string(l.lanacl, ','), '') as lanacl,
-	coalesce(obj_description(l.oid, 'pg_language'), '') AS comment
+	l.lanvalidator::regprocedure::oid
 FROM pg_language l
 WHERE l.lanispl='t';
 `

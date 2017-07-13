@@ -134,8 +134,8 @@ var _ = Describe("backup integration create statement tests", func() {
 	Describe("PrintCreateViewStatements", func() {
 		It("creates a view with privileges and a comment (can't specify owner in GPDB5)", func() {
 			viewDef := backup.QueryViewDefinition{1, "public", "simpleview", "SELECT pg_roles.rolname FROM pg_roles;"}
-			viewMetadata := utils.ObjectMetadata{[]utils.ACL{utils.DefaultACLForType("testrole", "VIEW")}, "testrole", "this is a view comment"}
-			viewMetadataMap := map[uint32]utils.ObjectMetadata{1: viewMetadata}
+			viewMetadataMap := testutils.DefaultMetadataMap("VIEW")
+			viewMetadata := viewMetadataMap[1]
 
 			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewDef}, viewMetadataMap)
 
@@ -159,23 +159,30 @@ var _ = Describe("backup integration create statement tests", func() {
 				1: {"pg_catalog.plpgsql_validator", "oid", true},
 				2: {"pg_catalog.plpgsql_inline_handler", "internal", true},
 				3: {"pg_catalog.plpgsql_call_handler", "", true},
-				4: {"pg_catalog.plpython_call_handler", "", true},
-				5: {"pg_catalog.plpython_inline_handler", "internal", true},
+				4: {"pg_catalog.plperl_validator", "oid", true},
+				5: {"pg_catalog.plperl_inline_handler", "internal", true},
+				6: {"pg_catalog.plperl_call_handler", "", true},
 			}
-			plpgsqlInfo := backup.QueryProceduralLanguage{"plpgsql", "testrole", true, true, 1, 2, 3, "", ""}
-			plpythonuInfo := backup.QueryProceduralLanguage{"plpythonu", "testrole", true, false, 4, 5, 0, "", "this is a language comment"}
-			procLangs := []backup.QueryProceduralLanguage{plpgsqlInfo, plpythonuInfo}
+			plpgsqlInfo := backup.QueryProceduralLanguage{0, "plpgsql", "testrole", true, true, 1, 2, 3}
+			plperlInfo := backup.QueryProceduralLanguage{1, "plperl", "testrole", true, true, 4, 5, 6}
+			procLangs := []backup.QueryProceduralLanguage{plpgsqlInfo, plperlInfo}
+			langMetadataMap := testutils.DefaultMetadataMap("LANGUAGE")
+			langMetadata := langMetadataMap[1]
 
-			backup.PrintCreateLanguageStatements(buffer, procLangs, funcInfoMap)
+			backup.PrintCreateLanguageStatements(buffer, procLangs, funcInfoMap, langMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			defer testutils.AssertQueryRuns(connection, "DROP LANGUAGE plpythonu")
+			defer testutils.AssertQueryRuns(connection, "DROP LANGUAGE plperl")
 
 			resultProcLangs := backup.GetProceduralLanguages(connection)
+			resultMetadataMap := backup.GetMetadataForObjectType(connection, "", "lanacl", "lanowner", "pg_language")
 
+			plperlInfo.LangOid = testutils.OidFromLanguageName(connection, "plperl")
 			Expect(len(resultProcLangs)).To(Equal(2))
-			testutils.ExpectStructsToMatchExcluding(&plpgsqlInfo, &resultProcLangs[0], "Validator", "Inline", "Handler")
-			testutils.ExpectStructsToMatchExcluding(&plpythonuInfo, &resultProcLangs[1], "Handler", "Inline")
+			resultMetadata := resultMetadataMap[plperlInfo.LangOid]
+			testutils.ExpectStructsToMatchIncluding(&plpgsqlInfo, &resultProcLangs[0], "IsPl", "PlTrusted")
+			testutils.ExpectStructsToMatchIncluding(&plperlInfo, &resultProcLangs[1], "IsPl", "PlTrusted")
+			testutils.ExpectStructsToMatch(&langMetadata, &resultMetadata)
 		})
 	})
 	Describe("PrintCreateFunctionStatements", func() {

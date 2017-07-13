@@ -149,7 +149,8 @@ func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, 
 	}
 }
 
-func PrintCreateLanguageStatements(predataFile io.Writer, procLangs []QueryProceduralLanguage, funcInfoMap map[uint32]FunctionInfo) {
+func PrintCreateLanguageStatements(predataFile io.Writer, procLangs []QueryProceduralLanguage,
+	funcInfoMap map[uint32]FunctionInfo, procLangMetadata map[uint32]utils.ObjectMetadata) {
 	for _, procLang := range procLangs {
 		quotedOwner := utils.QuoteIdent(procLang.Owner)
 		quotedLanguage := utils.QuoteIdent(procLang.Name)
@@ -178,12 +179,7 @@ func PrintCreateLanguageStatements(predataFile io.Writer, procLangs []QueryProce
 			validatorInfo := funcInfoMap[procLang.Validator]
 			utils.MustPrintf(predataFile, "\nALTER FUNCTION %s(%s) OWNER TO %s;", validatorInfo.QualifiedName, validatorInfo.Arguments, quotedOwner)
 		}
-		if procLang.Owner != "" {
-			utils.MustPrintf(predataFile, "\nALTER LANGUAGE %s OWNER TO %s;", quotedLanguage, quotedOwner)
-		}
-		if procLang.Comment != "" {
-			utils.MustPrintf(predataFile, "\n\nCOMMENT ON LANGUAGE %s IS '%s';", quotedLanguage, procLang.Comment)
-		}
+		PrintObjectMetadata(predataFile, procLangMetadata[procLang.LangOid], utils.QuoteIdent(procLang.Name), "LANGUAGE", "", "LANGUAGE")
 		utils.MustPrintln(predataFile)
 	}
 }

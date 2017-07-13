@@ -108,14 +108,14 @@ func BasicRelation(schema string, relation string) Relation {
 func DefaultACLForType(grantee string, objType string) ACL {
 	return ACL{
 		Grantee:    grantee,
-		Select:     objType == "TABLE" || objType == "VIEW" || objType == "SEQUENCE",
+		Select:     objType == "TABLE" || objType == "SEQUENCE" || objType == "VIEW",
 		Insert:     objType == "TABLE" || objType == "VIEW",
-		Update:     objType == "TABLE" || objType == "VIEW" || objType == "SEQUENCE",
+		Update:     objType == "TABLE" || objType == "SEQUENCE" || objType == "VIEW",
 		Delete:     objType == "TABLE" || objType == "VIEW",
 		Truncate:   objType == "TABLE" || objType == "VIEW",
 		References: objType == "TABLE" || objType == "VIEW",
 		Trigger:    objType == "TABLE" || objType == "VIEW",
-		Usage:      objType == "SEQUENCE",
+		Usage:      objType == "LANGUAGE" || objType == "SEQUENCE",
 		Execute:    objType == "FUNCTION",
 	}
 }
@@ -272,6 +272,8 @@ func (obj ObjectMetadata) GetPrivilegesStatements(objectName string, objectType 
 			switch objectType {
 			case "FUNCTION":
 				hasAllPrivileges = acl.Execute
+			case "LANGUAGE":
+				hasAllPrivileges = acl.Usage
 			case "SEQUENCE":
 				hasAllPrivileges = acl.Select && acl.Update && acl.Usage
 			case "TABLE":
