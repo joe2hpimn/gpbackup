@@ -24,8 +24,8 @@ type Sequence struct {
  * Functions to print to the predata file
  */
 
-func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName string, objectType string) {
-	utils.MustPrintf(file, obj.GetCommentStatement(objectName, objectType))
+func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName string, objectType string, owningTable ...string) {
+	utils.MustPrintf(file, obj.GetCommentStatement(objectName, objectType, owningTable...))
 	utils.MustPrintf(file, obj.GetOwnerStatement(objectName, objectType))
 	utils.MustPrintf(file, obj.GetPrivilegesStatements(objectName, objectType))
 }

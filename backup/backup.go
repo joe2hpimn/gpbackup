@@ -231,7 +231,8 @@ func backupPostdata(filename string, tables []utils.Relation, extTableMap map[st
 
 	logger.Verbose("Writing CREATE TRIGGER statements to postdata file")
 	triggers := GetTriggerDefinitions(connection)
-	PrintPostdataCreateStatements(postdataFile, triggers)
+	triggerMetadata := GetCommentsForObjectType(connection, "", "oid", "pg_trigger", "pg_trigger")
+	PrintCreateTriggerStatements(postdataFile, triggers, triggerMetadata)
 }
 
 func DoTeardown() {

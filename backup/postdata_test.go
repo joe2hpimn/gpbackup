@@ -52,7 +52,27 @@ CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;`)
 
 CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;
 
-COMMENT ON RULE testrule IS 'This is a rule comment.';`)
+COMMENT ON RULE testrule ON public.testtable IS 'This is a rule comment.';`)
+		})
+	})
+	Context("PrintCreateTriggerStatements", func() {
+		It("can print a basic trigger", func() {
+			triggers := []backup.QuerySimpleDefinition{{1, "testtrigger", "public", "testtable", "CREATE TRIGGER sync_testtable AFTER INSERT OR DELETE OR UPDATE ON testtable FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger()"}}
+			emptyMetadataMap := utils.MetadataMap{}
+			backup.PrintCreateTriggerStatements(buffer, triggers, emptyMetadataMap)
+			testutils.ExpectRegexp(buffer, `
+
+CREATE TRIGGER sync_testtable AFTER INSERT OR DELETE OR UPDATE ON testtable FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger();`)
+		})
+		It("can print a trigger with a comment", func() {
+			triggers := []backup.QuerySimpleDefinition{{1, "testtrigger", "public", "testtable", "CREATE TRIGGER sync_testtable AFTER INSERT OR DELETE OR UPDATE ON testtable FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger()"}}
+			triggerMetadataMap := utils.MetadataMap{1: {Comment: "This is a trigger comment."}}
+			backup.PrintCreateTriggerStatements(buffer, triggers, triggerMetadataMap)
+			testutils.ExpectRegexp(buffer, `
+
+CREATE TRIGGER sync_testtable AFTER INSERT OR DELETE OR UPDATE ON testtable FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger();
+
+COMMENT ON TRIGGER testtrigger ON public.testtable IS 'This is a trigger comment.';`)
 		})
 	})
 })

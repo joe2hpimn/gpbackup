@@ -403,10 +403,10 @@ ORDER BY rulename;`
 	return results
 }
 
-func GetTriggerMetadata(connection *utils.DBConn) []QuerySimpleDefinition {
+func GetTriggerDefinitions(connection *utils.DBConn) []QuerySimpleDefinition {
 	query := `
 SELECT
-	c.oid,
+	t.oid,
 	t.tgname AS name,
 	n.nspname AS owningschema,
 	c.relname AS owningtable,

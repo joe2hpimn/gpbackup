@@ -502,9 +502,9 @@ CYCLE`)
 			testutils.ExpectStructsToMatchExcluding(&rule2, &results[1], "Oid")
 		})
 	})
-	Describe("GetTriggerMetadata", func() {
+	Describe("GetTriggerDefinitions", func() {
 		It("returns no slice when no trigger exists", func() {
-			results := backup.GetTriggerMetadata(connection)
+			results := backup.GetTriggerDefinitions(connection)
 
 			Expect(len(results)).To(Equal(0))
 		})
@@ -526,7 +526,7 @@ CYCLE`)
 				"CREATE TRIGGER sync_trigger_table2 AFTER INSERT OR DELETE OR UPDATE ON trigger_table2 FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger()",
 			}
 
-			results := backup.GetTriggerMetadata(connection)
+			results := backup.GetTriggerDefinitions(connection)
 
 			Expect(len(results)).To(Equal(2))
 			testutils.ExpectStructsToMatchExcluding(&trigger1, &results[0], "Oid")
@@ -539,7 +539,7 @@ CYCLE`)
 			defer testutils.AssertQueryRuns(connection, "DROP TABLE trigger_table2")
 			testutils.AssertQueryRuns(connection, "ALTER TABLE trigger_table2 ADD CONSTRAINT fkc FOREIGN KEY (j) REFERENCES trigger_table1 (i) ON UPDATE RESTRICT ON DELETE RESTRICT")
 
-			results := backup.GetTriggerMetadata(connection)
+			results := backup.GetTriggerDefinitions(connection)
 
 			Expect(len(results)).To(Equal(0))
 		})

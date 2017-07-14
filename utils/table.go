@@ -343,10 +343,14 @@ func (obj ObjectMetadata) GetOwnerStatement(objectName string, objectType string
 	return ownerStr
 }
 
-func (obj ObjectMetadata) GetCommentStatement(objectName string, objectType string) string {
+func (obj ObjectMetadata) GetCommentStatement(objectName string, objectType string, owningTable ...string) string {
 	commentStr := ""
+	tableStr := ""
+	if len(owningTable) == 1 {
+		tableStr = fmt.Sprintf(" ON %s", owningTable[0])
+	}
 	if obj.Comment != "" {
-		commentStr = fmt.Sprintf("\n\nCOMMENT ON %s %s IS '%s';\n", objectType, objectName, obj.Comment)
+		commentStr = fmt.Sprintf("\n\nCOMMENT ON %s %s%s IS '%s';\n", objectType, objectName, tableStr, obj.Comment)
 	}
 	return commentStr
 }
