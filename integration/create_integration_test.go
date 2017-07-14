@@ -292,82 +292,85 @@ var _ = Describe("backup integration create statement tests", func() {
 			pkConstraint     backup.QueryConstraint
 			fkConstraint     backup.QueryConstraint
 			checkConstraint  backup.QueryConstraint
-			constraints      []string
-			fkConstraints    []string
+			conMetadataMap   utils.MetadataMap
 		)
 		BeforeEach(func() {
 			testTable = utils.BasicRelation("public", "testtable")
-			uniqueConstraint = backup.QueryConstraint{ConName: "uniq2", ConType: "u", ConDef: "UNIQUE (a, b)", ConComment: "this is a constraint comment"}
-			pkConstraint = backup.QueryConstraint{ConName: "pk1", ConType: "p", ConDef: "PRIMARY KEY (a, b)", ConComment: "this is a constraint comment"}
-			fkConstraint = backup.QueryConstraint{ConName: "fk1", ConType: "f", ConDef: "FOREIGN KEY (b) REFERENCES constraints_other_table(b)", ConComment: ""}
-			checkConstraint = backup.QueryConstraint{ConName: "check1", ConType: "c", ConDef: "CHECK (a <> 42)", ConComment: ""}
-			testutils.AssertQueryRuns(connection, "CREATE TABLE public.testtable(a int, b text)")
+			uniqueConstraint = backup.QueryConstraint{0, "uniq2", "u", "UNIQUE (a, b)", "public.testtable"}
+			pkConstraint = backup.QueryConstraint{0, "constraints_other_table_pkey", "p", "PRIMARY KEY (b)", "public.constraints_other_table"}
+			fkConstraint = backup.QueryConstraint{0, "fk1", "f", "FOREIGN KEY (b) REFERENCES constraints_other_table(b)", "public.testtable"}
+			checkConstraint = backup.QueryConstraint{0, "check1", "c", "CHECK (a <> 42)", "public.testtable"}
+			testutils.AssertQueryRuns(connection, "CREATE TABLE public.testtable(a int, b text) DISTRIBUTED BY (b)")
 			tableOid = testutils.OidFromRelationName(connection, "testtable")
+			conMetadataMap = utils.MetadataMap{}
 		})
 		AfterEach(func() {
 			testutils.AssertQueryRuns(connection, "DROP TABLE testtable CASCADE")
 		})
 		It("creates a unique constraint", func() {
-			constraints, fkConstraints = backup.ProcessConstraints(testTable, []backup.QueryConstraint{uniqueConstraint})
-			backup.PrintConstraintStatements(buffer, constraints, fkConstraints)
+			constraints := []backup.QueryConstraint{uniqueConstraint}
+			backup.PrintConstraintStatements(buffer, constraints, conMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 
-			resultConstraints := backup.GetConstraints(connection, tableOid)
+			resultConstraints := backup.GetConstraints(connection)
 
 			Expect(len(resultConstraints)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&uniqueConstraint, &resultConstraints[0])
+			testutils.ExpectStructsToMatchExcluding(&uniqueConstraint, &resultConstraints[0], "ConOid")
 		})
 		It("creates a primary key constraint", func() {
-			constraints, fkConstraints = backup.ProcessConstraints(testTable, []backup.QueryConstraint{pkConstraint})
-			backup.PrintConstraintStatements(buffer, constraints, fkConstraints)
-
-			testutils.AssertQueryRuns(connection, buffer.String())
-
-			resultConstraints := backup.GetConstraints(connection, tableOid)
-
-			Expect(len(resultConstraints)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&pkConstraint, &resultConstraints[0])
-		})
-		It("creates a fk constraint", func() {
-			constraints, fkConstraints = backup.ProcessConstraints(testTable, []backup.QueryConstraint{fkConstraint})
-			backup.PrintConstraintStatements(buffer, constraints, fkConstraints)
+			constraints := []backup.QueryConstraint{}
+			backup.PrintConstraintStatements(buffer, constraints, conMetadataMap)
 
 			testutils.AssertQueryRuns(connection, "CREATE TABLE constraints_other_table(b text PRIMARY KEY)")
 			defer testutils.AssertQueryRuns(connection, "DROP TABLE constraints_other_table CASCADE")
 			testutils.AssertQueryRuns(connection, buffer.String())
 
-			resultConstraints := backup.GetConstraints(connection, tableOid)
+			resultConstraints := backup.GetConstraints(connection)
 
 			Expect(len(resultConstraints)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&fkConstraint, &resultConstraints[0])
+			testutils.ExpectStructsToMatchExcluding(&pkConstraint, &resultConstraints[0], "ConOid")
+		})
+		It("creates a foreign key constraint", func() {
+			constraints := []backup.QueryConstraint{fkConstraint}
+			backup.PrintConstraintStatements(buffer, constraints, conMetadataMap)
+
+			testutils.AssertQueryRuns(connection, "CREATE TABLE constraints_other_table(b text PRIMARY KEY)")
+			defer testutils.AssertQueryRuns(connection, "DROP TABLE constraints_other_table CASCADE")
+			testutils.AssertQueryRuns(connection, buffer.String())
+
+			resultConstraints := backup.GetConstraints(connection)
+
+			Expect(len(resultConstraints)).To(Equal(2))
+			testutils.ExpectStructsToMatchExcluding(&pkConstraint, &resultConstraints[0], "ConOid")
+			testutils.ExpectStructsToMatchExcluding(&fkConstraint, &resultConstraints[1], "ConOid")
 		})
 		It("creates a check constraint", func() {
-			constraints, fkConstraints = backup.ProcessConstraints(testTable, []backup.QueryConstraint{checkConstraint})
-			backup.PrintConstraintStatements(buffer, constraints, fkConstraints)
+			constraints := []backup.QueryConstraint{checkConstraint}
+			backup.PrintConstraintStatements(buffer, constraints, conMetadataMap)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 
-			resultConstraints := backup.GetConstraints(connection, tableOid)
+			resultConstraints := backup.GetConstraints(connection)
 
 			Expect(len(resultConstraints)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&checkConstraint, &resultConstraints[0])
+			testutils.ExpectStructsToMatchExcluding(&checkConstraint, &resultConstraints[0], "ConOid")
 		})
 		It("creates multiple constraints on one table", func() {
-			constraints, fkConstraints = backup.ProcessConstraints(testTable, []backup.QueryConstraint{checkConstraint, pkConstraint, uniqueConstraint, fkConstraint})
-			backup.PrintConstraintStatements(buffer, constraints, fkConstraints)
+			constraints := []backup.QueryConstraint{checkConstraint, uniqueConstraint, fkConstraint}
+			backup.PrintConstraintStatements(buffer, constraints, conMetadataMap)
 
 			testutils.AssertQueryRuns(connection, "CREATE TABLE constraints_other_table(b text PRIMARY KEY)")
 			defer testutils.AssertQueryRuns(connection, "DROP TABLE constraints_other_table CASCADE")
 			testutils.AssertQueryRuns(connection, buffer.String())
 
-			resultConstraints := backup.GetConstraints(connection, tableOid)
+			resultConstraints := backup.GetConstraints(connection)
 
 			Expect(len(resultConstraints)).To(Equal(4))
-			testutils.ExpectStructsToMatch(&checkConstraint, &resultConstraints[0])
-			testutils.ExpectStructsToMatch(&pkConstraint, &resultConstraints[1])
-			testutils.ExpectStructsToMatch(&uniqueConstraint, &resultConstraints[2])
-			testutils.ExpectStructsToMatch(&fkConstraint, &resultConstraints[3])
+			testutils.ExpectStructsToMatchExcluding(&checkConstraint, &resultConstraints[0], "ConOid")
+			testutils.ExpectStructsToMatchExcluding(&pkConstraint, &resultConstraints[1], "ConOid")
+			testutils.ExpectStructsToMatchExcluding(&fkConstraint, &resultConstraints[2], "ConOid")
+			testutils.ExpectStructsToMatchExcluding(&uniqueConstraint, &resultConstraints[3], "ConOid")
 		})
 	})
 	Describe("PrintCreateSequenceStatements", func() {

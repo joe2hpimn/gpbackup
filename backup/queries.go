@@ -153,23 +153,29 @@ ORDER BY adrelid,
 }
 
 type QueryConstraint struct {
-	ConName    string
-	ConType    string
-	ConDef     string
-	ConComment string
+	ConOid      uint32
+	ConName     string
+	ConType     string
+	ConDef      string
+	OwningTable string
 }
 
-func GetConstraints(connection *utils.DBConn, oid uint32) []QueryConstraint {
+func GetConstraints(connection *utils.DBConn) []QueryConstraint {
 	// This query is adapted from the queries underlying \d in psql.
 	query := fmt.Sprintf(`
 SELECT
+	c.oid AS conoid,
 	conname,
 	contype,
-	pg_catalog.pg_get_constraintdef(oid, TRUE) AS condef,
-	coalesce(obj_description(oid, 'pg_constraint'), '') AS concomment
-FROM pg_catalog.pg_constraint
-WHERE conrelid = %d;
-`, oid)
+	pg_get_constraintdef(c.oid, TRUE) AS condef,
+	quote_ident(n.nspname) || '.' || quote_ident(t.relname) AS owningtable
+FROM pg_constraint c
+JOIN pg_class t
+	ON c.conrelid = t.oid
+JOIN pg_namespace n
+	ON n.oid = t.relnamespace
+WHERE %s
+ORDER BY conname;`, nonUserSchemaFilterClause)
 
 	results := make([]QueryConstraint, 0)
 	err := connection.Select(&results, query)

@@ -9,7 +9,6 @@ package backup
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/greenplum-db/gpbackup/utils"
@@ -31,54 +30,31 @@ func PrintObjectMetadata(file io.Writer, obj utils.ObjectMetadata, objectName st
 }
 
 /*
- * This function calls per-table functions to get constraints related to each
- * table, then consolidates them in two slices holding all constraints for all
- * tables.  Two slices are needed because FOREIGN KEY constraints must be dumped
- * after PRIMARY KEY constraints, so they're separated out to be handled last.
- */
-func ConstructConstraintsForAllTables(connection *utils.DBConn, tables []utils.Relation) ([]string, []string) {
-	allConstraints := make([]string, 0)
-	allFkConstraints := make([]string, 0)
-	for _, table := range tables {
-		constraintList := GetConstraints(connection, table.RelationOid)
-		tableConstraints, tableFkConstraints := ProcessConstraints(table, constraintList)
-		allConstraints = append(allConstraints, tableConstraints...)
-		allFkConstraints = append(allFkConstraints, tableFkConstraints...)
-	}
-	return allConstraints, allFkConstraints
-}
-
-/*
  * There's no built-in function to generate constraint definitions like there is for other types of
  * metadata, so this function constructs them.
  */
-func ProcessConstraints(table utils.Relation, constraints []QueryConstraint) ([]string, []string) {
-	alterStr := fmt.Sprintf("\n\nALTER TABLE ONLY %s ADD CONSTRAINT %s %s;", table.ToString(), "%s", "%s")
-	commentStr := fmt.Sprintf("\n\nCOMMENT ON CONSTRAINT %s ON %s IS '%s';", "%s", table.ToString(), "%s")
-	cons := make([]string, 0)
-	fkCons := make([]string, 0)
+func PrintConstraintStatements(predataFile io.Writer, constraints []QueryConstraint, conMetadata utils.MetadataMap) {
+	allConstraints := make([]QueryConstraint, 0)
+	allFkConstraints := make([]QueryConstraint, 0)
+	/*
+	 * Because FOREIGN KEY constraints must be dumped after PRIMARY KEY
+	 * constraints, we separate the two types then concatenate the lists,
+	 * so FOREIGN KEY are guaranteed to be printed last.
+	 */
 	for _, constraint := range constraints {
-		conStr := fmt.Sprintf(alterStr, utils.QuoteIdent(constraint.ConName), constraint.ConDef)
-		if constraint.ConComment != "" {
-			conStr += fmt.Sprintf(commentStr, utils.QuoteIdent(constraint.ConName), constraint.ConComment)
-		}
 		if constraint.ConType == "f" {
-			fkCons = append(fkCons, conStr)
+			allFkConstraints = append(allFkConstraints, constraint)
 		} else {
-			cons = append(cons, conStr)
+			allConstraints = append(allConstraints, constraint)
 		}
 	}
-	return cons, fkCons
-}
+	constraints = append(allConstraints, allFkConstraints...)
 
-func PrintConstraintStatements(predataFile io.Writer, constraints []string, fkConstraints []string) {
-	sort.Strings(constraints)
-	sort.Strings(fkConstraints)
+	alterStr := "\n\nALTER TABLE ONLY %s ADD CONSTRAINT %s %s;\n"
 	for _, constraint := range constraints {
-		utils.MustPrintln(predataFile, constraint)
-	}
-	for _, constraint := range fkConstraints {
-		utils.MustPrintln(predataFile, constraint)
+		conName := utils.QuoteIdent(constraint.ConName)
+		utils.MustPrintf(predataFile, alterStr, constraint.OwningTable, conName, constraint.ConDef)
+		PrintObjectMetadata(predataFile, conMetadata[constraint.ConOid], conName, "CONSTRAINT")
 	}
 }
 

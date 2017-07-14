@@ -187,8 +187,9 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 	PrintCreateViewStatements(predataFile, viewDefs, relationMetadata)
 
 	logger.Verbose("Writing ADD CONSTRAINT statements to predata file")
-	allConstraints, allFkConstraints := ConstructConstraintsForAllTables(connection, tables)
-	PrintConstraintStatements(predataFile, allConstraints, allFkConstraints)
+	constraints := GetConstraints(connection)
+	conMetadata := GetCommentsForObjectType(connection, "", "oid", "pg_constraint", "pg_constraint")
+	PrintConstraintStatements(predataFile, constraints, conMetadata)
 
 	logger.Verbose("Writing CREATE SEQUENCE statements to predata file")
 	sequenceDefs := GetAllSequences(connection)
