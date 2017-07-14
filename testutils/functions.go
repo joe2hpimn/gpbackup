@@ -151,3 +151,7 @@ func OidFromRelationName(dbconn *utils.DBConn, name string) uint32 {
 func OidFromRoleName(dbconn *utils.DBConn, name string) uint32 {
 	return OidFromName(dbconn, name, "rolname", "pg_roles")
 }
+
+func OidFromRuleName(dbconn *utils.DBConn, name string) uint32 {
+	return OidFromName(dbconn, name, "rulename", "pg_rewrite")
+}

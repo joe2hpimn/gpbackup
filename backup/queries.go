@@ -346,7 +346,7 @@ type QuerySimpleDefinition struct {
 func GetIndexDefinitions(connection *utils.DBConn, indexNameMap map[string]bool) []QuerySimpleDefinition {
 	query := fmt.Sprintf(`
 SELECT
-	c.oid,
+	i.indexrelid AS oid,
 	t.relname AS name,
 	n.nspname AS owningschema,
 	c.relname AS owningtable,
@@ -383,7 +383,7 @@ ORDER BY name;`, nonUserSchemaFilterClause)
 func GetRuleDefinitions(connection *utils.DBConn) []QuerySimpleDefinition {
 	query := `
 SELECT
-	c.oid,
+	r.oid,
 	r.rulename AS name,
 	n.nspname AS owningschema,
 	c.relname AS owningtable,

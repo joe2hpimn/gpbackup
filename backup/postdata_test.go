@@ -15,7 +15,7 @@ var _ = Describe("backup/postdata tests", func() {
 		buffer = gbytes.NewBuffer()
 		testutils.SetupTestLogger()
 	})
-	Context("Indexes on a single column", func() {
+	Context("PrintCreateIndexStatements", func() {
 		It("can print a basic index", func() {
 			indexes := []backup.QuerySimpleDefinition{{1, "testindex", "public", "testtable", "CREATE INDEX testindex ON public.testtable USING btree(i)"}}
 			emptyMetadataMap := utils.MetadataMap{}
@@ -33,6 +33,26 @@ CREATE INDEX testindex ON public.testtable USING btree(i);`)
 CREATE INDEX testindex ON public.testtable USING btree(i);
 
 COMMENT ON INDEX testindex IS 'This is an index comment.';`)
+		})
+	})
+	Context("PrintCreateRuleStatements", func() {
+		It("can print a basic rule", func() {
+			rules := []backup.QuerySimpleDefinition{{1, "testrule", "public", "testtable", "CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;"}}
+			emptyMetadataMap := utils.MetadataMap{}
+			backup.PrintCreateRuleStatements(buffer, rules, emptyMetadataMap)
+			testutils.ExpectRegexp(buffer, `
+
+CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;`)
+		})
+		It("can print a rule with a comment", func() {
+			rules := []backup.QuerySimpleDefinition{{1, "testrule", "public", "testtable", "CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;"}}
+			ruleMetadataMap := utils.MetadataMap{1: {Comment: "This is a rule comment."}}
+			backup.PrintCreateRuleStatements(buffer, rules, ruleMetadataMap)
+			testutils.ExpectRegexp(buffer, `
+
+CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;
+
+COMMENT ON RULE testrule IS 'This is a rule comment.';`)
 		})
 	})
 })

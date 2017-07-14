@@ -473,9 +473,9 @@ CYCLE`)
 			testutils.ExpectStructsToMatchExcluding(&index2, &results[1], "Oid")
 		})
 	})
-	Describe("GetRuleMetadata", func() {
+	Describe("GetRuleDefinitions", func() {
 		It("returns no slice when no rule exists", func() {
-			results := backup.GetRuleMetadata(connection)
+			results := backup.GetRuleDefinitions(connection)
 
 			Expect(len(results)).To(Equal(0))
 		})
@@ -495,7 +495,7 @@ CYCLE`)
 			rule2 := backup.QuerySimpleDefinition{1, "update_notify", "public", "rule_table1",
 				"CREATE RULE update_notify AS ON UPDATE TO rule_table1 DO NOTIFY rule_table1;"}
 
-			results := backup.GetRuleMetadata(connection)
+			results := backup.GetRuleDefinitions(connection)
 
 			Expect(len(results)).To(Equal(2))
 			testutils.ExpectStructsToMatchExcluding(&rule1, &results[0], "Oid")

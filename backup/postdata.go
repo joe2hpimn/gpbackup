@@ -23,7 +23,7 @@ func PrintCreateIndexStatements(postdataFile io.Writer, indexes []QuerySimpleDef
 
 func PrintCreateRuleStatements(postdataFile io.Writer, rules []QuerySimpleDefinition, ruleMetadata utils.MetadataMap) {
 	for _, rule := range rules {
-		utils.MustPrintf(postdataFile, "\n\n%s;", rule.Def)
+		utils.MustPrintf(postdataFile, "\n\n%s", rule.Def)
 		PrintObjectMetadata(postdataFile, ruleMetadata[rule.Oid], rule.Name, "RULE")
 	}
 }

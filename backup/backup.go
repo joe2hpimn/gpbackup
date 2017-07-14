@@ -147,7 +147,7 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 	funcInfoMap := GetFunctionOidToInfoMap(connection)
 	logger.Verbose("Writing CREATE PROCEDURAL LANGUAGE statements to predata file")
 	procLangs := GetProceduralLanguages(connection)
-	procLangMetadata := GetMetadataForObjectType(connection, "lannamespace", "lanacl", "lanowner", "pg_language")
+	procLangMetadata := GetMetadataForObjectType(connection, "", "lanacl", "lanowner", "pg_language")
 	PrintCreateLanguageStatements(predataFile, procLangs, funcInfoMap, procLangMetadata)
 
 	logger.Verbose("Writing CREATE TYPE statements for composite and enum types to predata file")
@@ -227,7 +227,7 @@ func backupPostdata(filename string, tables []utils.Relation, extTableMap map[st
 	logger.Verbose("Writing CREATE RULE statements to postdata file")
 	rules := GetRuleDefinitions(connection)
 	ruleMetadata := GetCommentsForObjectType(connection, "", "oid", "pg_rewrite", "pg_rewrite")
-	PrintPostdataCreateStatements(postdataFile, rules, ruleMetadata)
+	PrintCreateRuleStatements(postdataFile, rules, ruleMetadata)
 
 	logger.Verbose("Writing CREATE TRIGGER statements to postdata file")
 	triggers := GetTriggerDefinitions(connection)

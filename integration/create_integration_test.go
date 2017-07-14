@@ -506,6 +506,50 @@ var _ = Describe("backup integration create statement tests", func() {
 			testutils.ExpectStructsToMatch(&resultMetadata, &indexMetadata)
 		})
 	})
+	Describe("PrintCreateRuleStatements", func() {
+		var (
+			ruleMetadataMap utils.MetadataMap
+		)
+		BeforeEach(func() {
+			ruleMetadataMap = utils.MetadataMap{}
+		})
+		It("creates a basic rule", func() {
+			rules := []backup.QuerySimpleDefinition{
+				{0, "update_notify", "public", "testtable", "CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;"},
+			}
+			backup.PrintCreateRuleStatements(buffer, rules, ruleMetadataMap)
+
+			testutils.AssertQueryRuns(connection, "CREATE TABLE testtable(i int)")
+			defer testutils.AssertQueryRuns(connection, "DROP TABLE testtable")
+
+			testutils.AssertQueryRuns(connection, buffer.String())
+
+			resultRules := backup.GetRuleDefinitions(connection)
+			Expect(len(resultRules)).To(Equal(1))
+			testutils.ExpectStructsToMatchExcluding(&resultRules[0], &rules[0], "Oid")
+		})
+		It("creates an rule with a comment", func() {
+			rules := []backup.QuerySimpleDefinition{
+				{1, "update_notify", "public", "testtable", "CREATE RULE update_notify AS ON UPDATE TO testtable DO NOTIFY testtable;"},
+			}
+			ruleMetadataMap = testutils.DefaultCommentMap("RULE")
+			ruleMetadata := ruleMetadataMap[1]
+			backup.PrintCreateRuleStatements(buffer, rules, ruleMetadataMap)
+
+			testutils.AssertQueryRuns(connection, "CREATE TABLE testtable(i int)")
+			defer testutils.AssertQueryRuns(connection, "DROP TABLE testtable")
+
+			testutils.AssertQueryRuns(connection, buffer.String())
+
+			rules[0].Oid = testutils.OidFromRuleName(connection, "update_notify")
+			resultRules := backup.GetRuleDefinitions(connection)
+			resultMetadataMap := backup.GetCommentsForObjectType(connection, "", "oid", "pg_rewrite", "pg_rewrite")
+			resultMetadata := resultMetadataMap[rules[0].Oid]
+			Expect(len(resultRules)).To(Equal(1))
+			testutils.ExpectStructsToMatchExcluding(&resultRules[0], &rules[0], "Oid")
+			testutils.ExpectStructsToMatch(&resultMetadata, &ruleMetadata)
+		})
+	})
 	Describe("PrintCreateCastStatements", func() {
 		It("creates a cast", func() {
 			castDef := backup.QueryCastDefinition{SourceType: "text", TargetType: "integer", FunctionSchema: "public",
