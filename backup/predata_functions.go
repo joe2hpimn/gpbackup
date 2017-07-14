@@ -126,14 +126,14 @@ func PrintCreateAggregateStatements(predataFile io.Writer, aggDefs []QueryAggreg
 	}
 }
 
-func PrintCreateCastStatements(predataFile io.Writer, castDefs []QueryCastDefinition) {
+func PrintCreateCastStatements(predataFile io.Writer, castDefs []QueryCastDefinition, castMetadata utils.MetadataMap) {
 	for _, castDef := range castDefs {
 		/*
 		 * Because we use pg_catalog.format_type() in the query to get the cast definition,
 		 * castDef.SourceType and castDef.TargetType are already quoted appropriately.
 		 */
-		castStr := fmt.Sprintf("CAST (%s AS %s)", castDef.SourceType, castDef.TargetType)
-		utils.MustPrintf(predataFile, "\n\nCREATE %s\n", castStr)
+		castStr := fmt.Sprintf("(%s AS %s)", castDef.SourceType, castDef.TargetType)
+		utils.MustPrintf(predataFile, "\n\nCREATE CAST %s\n", castStr)
 		if castDef.FunctionSchema != "" {
 			funcFQN := fmt.Sprintf("%s.%s", utils.QuoteIdent(castDef.FunctionSchema), utils.QuoteIdent(castDef.FunctionName))
 			utils.MustPrintf(predataFile, "\tWITH FUNCTION %s(%s)", funcFQN, castDef.FunctionArgs)
@@ -147,9 +147,7 @@ func PrintCreateCastStatements(predataFile io.Writer, castDefs []QueryCastDefini
 			utils.MustPrintf(predataFile, "\nAS IMPLICIT")
 		case "e": // Default case, don't print anything else
 		}
-		utils.MustPrintln(predataFile, ";")
-		if castDef.Comment != "" {
-			utils.MustPrintf(predataFile, "\nCOMMENT ON %s IS '%s';\n", castStr, castDef.Comment)
-		}
+		utils.MustPrintf(predataFile, ";")
+		PrintObjectMetadata(predataFile, castMetadata[castDef.CastOid], castStr, "CAST")
 	}
 }

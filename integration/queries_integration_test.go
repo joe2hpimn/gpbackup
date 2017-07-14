@@ -1115,11 +1115,10 @@ LANGUAGE SQL`)
 
 			results := backup.GetCastDefinitions(connection)
 
-			castDef := backup.QueryCastDefinition{SourceType: "text", TargetType: "integer", FunctionSchema: "public",
-				FunctionName: "casttoint", FunctionArgs: "text", CastContext: "a", Comment: ""}
+			castDef := backup.QueryCastDefinition{0, "text", "integer", "public", "casttoint", "text", "a"}
 
 			Expect(len(results)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&castDef, &results[0])
+			testutils.ExpectStructsToMatchExcluding(&castDef, &results[0], "CastOid")
 		})
 		It("returns a slice for a basic cast with comment", func() {
 			testutils.AssertQueryRuns(connection, "CREATE FUNCTION casttoint(text) RETURNS integer STRICT IMMUTABLE LANGUAGE SQL AS 'SELECT cast($1 as integer);'")
@@ -1130,11 +1129,10 @@ LANGUAGE SQL`)
 
 			results := backup.GetCastDefinitions(connection)
 
-			castDef := backup.QueryCastDefinition{SourceType: "text", TargetType: "integer", FunctionSchema: "public",
-				FunctionName: "casttoint", FunctionArgs: "text", CastContext: "a", Comment: "this is a cast comment"}
+			castDef := backup.QueryCastDefinition{1, "text", "integer", "public", "casttoint", "text", "a"}
 
 			Expect(len(results)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&castDef, &results[0])
+			testutils.ExpectStructsToMatchExcluding(&castDef, &results[0], "CastOid")
 		})
 	})
 	Describe("GetViewDefinitions", func() {

@@ -572,25 +572,25 @@ LEFT JOIN pg_namespace n ON p.pronamespace = n.oid;
 }
 
 type QueryCastDefinition struct {
+	CastOid        uint32
 	SourceType     string
 	TargetType     string
 	FunctionSchema string
 	FunctionName   string
 	FunctionArgs   string
 	CastContext    string
-	Comment        string
 }
 
 func GetCastDefinitions(connection *utils.DBConn) []QueryCastDefinition {
 	query := fmt.Sprintf(`
 SELECT
+	c.oid AS castoid,
 	pg_catalog.format_type(c.castsource, NULL) AS sourcetype,
 	pg_catalog.format_type(c.casttarget, NULL) AS targettype,
 	coalesce(n.nspname, '') AS functionschema,
 	coalesce(p.proname, '') AS functionname,
 	pg_get_function_arguments(p.oid) AS functionargs,
-	c.castcontext,
-	coalesce(d.description, '') AS comment
+	c.castcontext
 FROM pg_cast c
 LEFT JOIN pg_proc p ON c.castfunc = p.oid
 LEFT JOIN pg_description d ON c.oid = d.objoid
