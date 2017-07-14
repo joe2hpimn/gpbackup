@@ -13,7 +13,7 @@ import (
 	"github.com/greenplum-db/gpbackup/utils"
 )
 
-func PrintCreateFunctionStatements(predataFile io.Writer, funcDefs []QueryFunctionDefinition, funcMetadata map[uint32]utils.ObjectMetadata) {
+func PrintCreateFunctionStatements(predataFile io.Writer, funcDefs []QueryFunctionDefinition, funcMetadata utils.MetadataMap) {
 	for _, funcDef := range funcDefs {
 		funcFQN := utils.MakeFQN(funcDef.SchemaName, funcDef.FunctionName)
 		utils.MustPrintf(predataFile, "\n\nCREATE FUNCTION %s(%s) RETURNS ", funcFQN, funcDef.Arguments)

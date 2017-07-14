@@ -28,10 +28,10 @@ var _ = Describe("backup/predata tests", func() {
 
 		Describe("PrintCreateFunctionStatements", func() {
 			var (
-				funcMetadataMap map[uint32]utils.ObjectMetadata
+				funcMetadataMap utils.MetadataMap
 			)
 			BeforeEach(func() {
-				funcMetadataMap = map[uint32]utils.ObjectMetadata{}
+				funcMetadataMap = utils.MetadataMap{}
 			})
 			It("prints a function definition for an internal function without a binary path", func() {
 				backup.PrintCreateFunctionStatements(buffer, funcDefs, funcMetadataMap)

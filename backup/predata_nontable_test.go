@@ -239,7 +239,7 @@ GRANT TRIGGER ON TABLE public.tablename TO PUBLIC;`)
 		seqStart := backup.Sequence{baseSequence, backup.QuerySequenceDefinition{"seq_name", 7, 1, 9223372036854775807, 1, 5, 42, false, false}}
 		emptyColumnOwnerMap := make(map[string]string, 0)
 		columnOwnerMap := map[string]string{"public.seq_name": "tablename.col_one"}
-		emptySequenceMetadataMap := map[uint32]utils.ObjectMetadata{}
+		emptySequenceMetadataMap := utils.MetadataMap{}
 		sequenceMetadataMap := testutils.DefaultMetadataMap("SEQUENCE")
 
 		It("can print a sequence with all default options", func() {
@@ -396,8 +396,8 @@ GRANT ALL ON SEQUENCE public.seq_name TO testrole;`)
 	})
 	Describe("PrintCreateSchemaStatements", func() {
 		It("can print a basic schema", func() {
-			schemas := []utils.Schema{utils.Schema{0, "schemaname"}}
-			emptyMetadataMap := map[uint32]utils.ObjectMetadata{}
+			schemas := []utils.Schema{{0, "schemaname"}}
+			emptyMetadataMap := utils.MetadataMap{}
 
 			backup.PrintCreateSchemaStatements(buffer, schemas, emptyMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE SCHEMA schemaname;`)
@@ -430,7 +430,7 @@ GRANT ALL ON SCHEMA schemaname TO testrole;`)
 			3: {QualifiedName: "pg_catalog.plpgsql_validator", Arguments: "oid", IsInternal: true},
 			4: {QualifiedName: "pg_catalog.plpython_call_handler", Arguments: "", IsInternal: true},
 		}
-		emptyMetadataMap := map[uint32]utils.ObjectMetadata{}
+		emptyMetadataMap := utils.MetadataMap{}
 
 		It("prints untrusted language with a handler only", func() {
 			langs := []backup.QueryProceduralLanguage{plUntrustedHandlerOnly}
@@ -484,7 +484,7 @@ GRANT ALL ON LANGUAGE plpythonu TO testrole;`)
 		It("can print a basic view", func() {
 			viewOne := backup.QueryViewDefinition{0, "public", "WowZa", "SELECT rolname FROM pg_role;"}
 			viewTwo := backup.QueryViewDefinition{1, "shamwow", "shazam", "SELECT count(*) FROM pg_tables;"}
-			viewMetadataMap := map[uint32]utils.ObjectMetadata{}
+			viewMetadataMap := utils.MetadataMap{}
 			backup.PrintCreateViewStatements(buffer, []backup.QueryViewDefinition{viewOne, viewTwo}, viewMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE VIEW public."WowZa" AS SELECT rolname FROM pg_role;
 

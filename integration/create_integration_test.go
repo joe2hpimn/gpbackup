@@ -145,7 +145,7 @@ var _ = Describe("backup integration create statement tests", func() {
 			resultViews := backup.GetViewDefinitions(connection)
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
-			viewDef.ViewOid = testutils.OidFromRelationName(connection, "public.simpleview")
+			viewDef.ViewOid = testutils.OidFromRelationName(connection, "simpleview")
 			Expect(len(resultViews)).To(Equal(1))
 			resultMetadata := resultMetadataMap[viewDef.ViewOid]
 			testutils.ExpectStructsToMatch(&viewDef, &resultViews[0])
@@ -186,7 +186,7 @@ var _ = Describe("backup integration create statement tests", func() {
 		})
 	})
 	Describe("PrintCreateFunctionStatements", func() {
-		funcMetadataMap := map[uint32]utils.ObjectMetadata{}
+		funcMetadataMap := utils.MetadataMap{}
 		It("creates a function with a simple return type", func() {
 			addFunction := backup.QueryFunctionDefinition{
 				SchemaName: "public", FunctionName: "add", ReturnsSet: false, FunctionBody: "SELECT $1 + $2",
@@ -302,7 +302,7 @@ var _ = Describe("backup integration create statement tests", func() {
 			fkConstraint = backup.QueryConstraint{ConName: "fk1", ConType: "f", ConDef: "FOREIGN KEY (b) REFERENCES constraints_other_table(b)", ConComment: ""}
 			checkConstraint = backup.QueryConstraint{ConName: "check1", ConType: "c", ConDef: "CHECK (a <> 42)", ConComment: ""}
 			testutils.AssertQueryRuns(connection, "CREATE TABLE public.testtable(a int, b text)")
-			tableOid = testutils.OidFromRelationName(connection, "public.testtable")
+			tableOid = testutils.OidFromRelationName(connection, "testtable")
 		})
 		AfterEach(func() {
 			testutils.AssertQueryRuns(connection, "DROP TABLE testtable CASCADE")
@@ -375,13 +375,13 @@ var _ = Describe("backup integration create statement tests", func() {
 			columnOwnerMap      map[string]string
 			sequence            utils.Relation
 			sequenceDef         backup.Sequence
-			sequenceMetadataMap map[uint32]utils.ObjectMetadata
+			sequenceMetadataMap utils.MetadataMap
 		)
 		BeforeEach(func() {
 			sequence = utils.Relation{0, 1, "public", "my_sequence"}
 			sequenceDef = backup.Sequence{Relation: sequence}
 			columnOwnerMap = map[string]string{}
-			sequenceMetadataMap = map[uint32]utils.ObjectMetadata{}
+			sequenceMetadataMap = utils.MetadataMap{}
 		})
 		It("creates a basic sequence", func() {
 			sequenceDef.QuerySequenceDefinition = backup.QuerySequenceDefinition{Name: "my_sequence", LastVal: 1, Increment: 1, MaxVal: 9223372036854775807, MinVal: 1, CacheVal: 1}
@@ -441,7 +441,7 @@ var _ = Describe("backup integration create statement tests", func() {
 
 			Expect(len(resultSequences)).To(Equal(1))
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
-			oid := testutils.OidFromRelationName(connection, "public.my_sequence")
+			oid := testutils.OidFromRelationName(connection, "my_sequence")
 			resultMetadata := resultMetadataMap[oid]
 			testutils.ExpectStructsToMatchExcluding(&sequence, &resultSequences[0].Relation, "SchemaOid", "RelationOid")
 			testutils.ExpectStructsToMatch(&sequenceDef.QuerySequenceDefinition, &resultSequences[0].QuerySequenceDefinition)
@@ -458,62 +458,52 @@ var _ = Describe("backup integration create statement tests", func() {
 			testutils.AssertQueryRuns(connection, buffer.String())
 		})
 	})
-	Describe("PrintPostdataCreateStatements", func() {
-		It("creates all indexes for all tables", func() {
-			testTable := utils.BasicRelation("public", "index_table")
-			btree := "\n\nCREATE INDEX simple_table_idx1 ON index_table USING btree (a);"
-			bitmap := "\n\nCREATE INDEX simple_table_idx2 ON index_table USING bitmap (b);\nCOMMENT ON INDEX simple_table_idx2 IS 'this is a index comment';"
-
-			backup.PrintPostdataCreateStatements(buffer, []string{btree, bitmap})
+	Describe("PrintCreateIndexStatements", func() {
+		var (
+			indexNameMap     map[string]bool
+			indexMetadataMap utils.MetadataMap
+		)
+		BeforeEach(func() {
+			indexNameMap = map[string]bool{}
+			indexMetadataMap = utils.MetadataMap{}
+		})
+		It("creates a basic index", func() {
+			indexes := []backup.QuerySimpleDefinition{
+				{0, "index1", "public", "testtable", "CREATE INDEX index1 ON testtable USING btree (i)"},
+			}
+			backup.PrintCreateIndexStatements(buffer, indexes, indexMetadataMap)
 
 			//Create table whose columns we can index
-			testutils.AssertQueryRuns(connection, "CREATE TABLE index_table(a int, b text)")
-			defer testutils.AssertQueryRuns(connection, "DROP TABLE index_table")
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.index_table")
+			testutils.AssertQueryRuns(connection, "CREATE TABLE testtable(i int)")
+			defer testutils.AssertQueryRuns(connection, "DROP TABLE testtable")
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			resultIndexes := backup.GetIndexesForAllTables(connection, []utils.Relation{testTable})
-			Expect(len(resultIndexes)).To(Equal(2))
-			Expect(resultIndexes[0]).To(Equal(btree))
-			Expect(resultIndexes[1]).To(Equal(bitmap))
+
+			resultIndexes := backup.GetIndexDefinitions(connection, indexNameMap)
+			Expect(len(resultIndexes)).To(Equal(1))
+			testutils.ExpectStructsToMatchExcluding(&resultIndexes[0], &indexes[0], "Oid")
 		})
-		It("creates all rules for all tables", func() {
-			insert := "\n\nCREATE RULE double_insert AS ON INSERT TO rule_table1 DO INSERT INTO rule_table2 DEFAULT VALUES;"
-			update := "\n\nCREATE RULE update_notify AS ON UPDATE TO rule_table1 DO NOTIFY rule_table1;\nCOMMENT ON RULE update_notify ON public.rule_table1 IS 'This is a rule comment.';"
+		It("creates an index with a comment", func() {
+			indexes := []backup.QuerySimpleDefinition{
+				{1, "index1", "public", "testtable", "CREATE INDEX index1 ON testtable USING btree (i)"},
+			}
+			indexMetadataMap = testutils.DefaultCommentMap("INDEX")
+			indexMetadata := indexMetadataMap[1]
+			backup.PrintCreateIndexStatements(buffer, indexes, indexMetadataMap)
 
-			backup.PrintPostdataCreateStatements(buffer, []string{insert, update})
-
-			testutils.AssertQueryRuns(connection, "CREATE TABLE rule_table1(i int)")
-			defer testutils.AssertQueryRuns(connection, "DROP TABLE rule_table1")
-			testutils.AssertQueryRuns(connection, "CREATE TABLE rule_table2(j int)")
-			defer testutils.AssertQueryRuns(connection, "DROP TABLE rule_table2")
-			defer testutils.AssertQueryRuns(connection, "DROP RULE double_insert ON rule_table1")
-			defer testutils.AssertQueryRuns(connection, "DROP RULE update_notify ON rule_table1")
-
-			testutils.AssertQueryRuns(connection, buffer.String())
-			resultRules := backup.GetRuleDefinitions(connection)
-			Expect(len(resultRules)).To(Equal(2))
-			Expect(resultRules[0]).To(Equal(insert))
-			Expect(resultRules[1]).To(Equal(update))
-		})
-		It("creates all triggers for all tables", func() {
-			sync1 := "\n\nCREATE TRIGGER sync_trigger_table1 AFTER INSERT OR DELETE OR UPDATE ON trigger_table1 FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger();"
-			sync2 := "\n\nCREATE TRIGGER sync_trigger_table2 AFTER INSERT OR DELETE OR UPDATE ON trigger_table2 FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger();\nCOMMENT ON TRIGGER sync_trigger_table2 ON public.trigger_table2 IS 'This is a trigger comment.';"
-
-			backup.PrintPostdataCreateStatements(buffer, []string{sync1, sync2})
-
-			testutils.AssertQueryRuns(connection, "CREATE TABLE trigger_table1(i int)")
-			defer testutils.AssertQueryRuns(connection, "DROP TABLE trigger_table1")
-			testutils.AssertQueryRuns(connection, "CREATE TABLE trigger_table2(j int)")
-			defer testutils.AssertQueryRuns(connection, "DROP TABLE trigger_table2")
-			defer testutils.AssertQueryRuns(connection, "DROP TRIGGER sync_trigger_table1 ON trigger_table1")
-			defer testutils.AssertQueryRuns(connection, "DROP TRIGGER sync_trigger_table2 ON trigger_table2")
+			//Create table whose columns we can index
+			testutils.AssertQueryRuns(connection, "CREATE TABLE testtable(i int)")
+			defer testutils.AssertQueryRuns(connection, "DROP TABLE testtable")
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			resultTriggers := backup.GetTriggerDefinitions(connection)
-			Expect(len(resultTriggers)).To(Equal(2))
-			Expect(resultTriggers[0]).To(Equal(sync1))
-			Expect(resultTriggers[1]).To(Equal(sync2))
+
+			indexes[0].Oid = testutils.OidFromRelationName(connection, "index1")
+			resultIndexes := backup.GetIndexDefinitions(connection, indexNameMap)
+			resultMetadataMap := backup.GetCommentsForObjectType(connection, "", "indexrelid", "pg_class", "pg_index")
+			resultMetadata := resultMetadataMap[indexes[0].Oid]
+			Expect(len(resultIndexes)).To(Equal(1))
+			testutils.ExpectStructsToMatchExcluding(&resultIndexes[0], &indexes[0], "Oid")
+			testutils.ExpectStructsToMatch(&resultMetadata, &indexMetadata)
 		})
 	})
 	Describe("PrintCreateCastStatements", func() {
@@ -598,7 +588,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintRegularTableCreateStatement(buffer, testTable, tableDef)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 		})
@@ -610,7 +600,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintRegularTableCreateStatement(buffer, testTable, tableDef)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 		})
@@ -623,7 +613,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintRegularTableCreateStatement(buffer, testTable, tableDef)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 		})
@@ -636,7 +626,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintRegularTableCreateStatement(buffer, testTable, tableDef)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 		})
@@ -649,7 +639,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintRegularTableCreateStatement(buffer, testTable, tableDef)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 		})
@@ -663,7 +653,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintRegularTableCreateStatement(buffer, testTable, tableDef)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 		})
@@ -688,7 +678,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintPostCreateTableStatements(buffer, testTable, tableDef, tableMetadata)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultMetadata := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 			resultTableMetadata := resultMetadata[testTable.RelationOid]
 			testutils.ExpectStructsToMatch(&tableMetadata, &resultTableMetadata)
@@ -702,7 +692,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 			backup.PrintPostCreateTableStatements(buffer, testTable, tableDef, tableMetadata)
 
 			testutils.AssertQueryRuns(connection, buffer.String())
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.ConstructDefinitionsForTable(connection, testTable, false)
 			testutils.ExpectStructsToMatchExcluding(&tableDef, &resultTableDef, "ExtTableDef")
 			resultMetadata := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
@@ -738,7 +728,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.GetExternalTableDefinition(connection, testTable.RelationOid)
 			resultTableDef.Type, resultTableDef.Protocol = backup.DetermineExternalTableCharacteristics(resultTableDef)
 
@@ -755,7 +745,7 @@ SET SUBPARTITION TEMPLATE  ` + `
 
 			testutils.AssertQueryRuns(connection, buffer.String())
 
-			testTable.RelationOid = testutils.OidFromRelationName(connection, "public.test_table")
+			testTable.RelationOid = testutils.OidFromRelationName(connection, "test_table")
 			resultTableDef := backup.GetExternalTableDefinition(connection, testTable.RelationOid)
 			resultTableDef.Type, resultTableDef.Protocol = backup.DetermineExternalTableCharacteristics(resultTableDef)
 

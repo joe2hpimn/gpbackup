@@ -336,21 +336,21 @@ AND i.indisprimary = 'f';
  * statements can require it.
  */
 type QuerySimpleDefinition struct {
+	Oid          uint32
 	Name         string
 	OwningSchema string
 	OwningTable  string
 	Def          string
-	Comment      string
 }
 
-func GetIndexMetadata(connection *utils.DBConn, oid uint32, indexNameMap map[string]bool) []QuerySimpleDefinition {
+func GetIndexDefinitions(connection *utils.DBConn, indexNameMap map[string]bool) []QuerySimpleDefinition {
 	query := fmt.Sprintf(`
 SELECT
+	c.oid,
 	t.relname AS name,
 	n.nspname AS owningschema,
 	c.relname AS owningtable,
-	pg_get_indexdef(i.indexrelid) AS def,
-	coalesce(obj_description(t.oid, 'pg_class'), '') AS comment
+	pg_get_indexdef(i.indexrelid) AS def
 FROM pg_index i
 JOIN pg_class c
 	ON (c.oid = i.indrelid)
@@ -358,16 +358,16 @@ JOIN pg_namespace n
 	ON (c.relnamespace = n.oid)
 JOIN pg_class t
 	ON (t.oid = i.indexrelid)
-WHERE i.indrelid = %d
+WHERE %s
 AND i.indisprimary = 'f'
-ORDER BY name;`, oid)
+ORDER BY name;`, nonUserSchemaFilterClause)
 
 	results := make([]QuerySimpleDefinition, 0)
 	err := connection.Select(&results, query)
 	utils.CheckError(err)
 	filteredIndexes := make([]QuerySimpleDefinition, 0)
 	for _, index := range results {
-		// We don't want to quote the index name, just prepend the schema
+		// We don't want to quote the index name to use it as a map key, just prepend the schema
 		indexFQN := fmt.Sprintf("%s.%s", index.OwningSchema, index.Name)
 		if !indexNameMap[indexFQN] {
 			filteredIndexes = append(filteredIndexes, index)
@@ -383,11 +383,11 @@ ORDER BY name;`, oid)
 func GetRuleMetadata(connection *utils.DBConn) []QuerySimpleDefinition {
 	query := `
 SELECT
+	c.oid,
 	r.rulename AS name,
 	n.nspname AS owningschema,
 	c.relname AS owningtable,
-	pg_get_ruledef(r.oid) AS def,
-	coalesce(obj_description(r.oid, 'pg_rewrite'), '') AS comment
+	pg_get_ruledef(r.oid) AS def
 FROM pg_rewrite r
 JOIN pg_class c
 	ON (c.oid = r.ev_class)
@@ -406,11 +406,11 @@ ORDER BY rulename;`
 func GetTriggerMetadata(connection *utils.DBConn) []QuerySimpleDefinition {
 	query := `
 SELECT
+	c.oid,
 	t.tgname AS name,
 	n.nspname AS owningschema,
 	c.relname AS owningtable,
-	pg_get_triggerdef(t.oid) AS def,
-	coalesce(obj_description(t.oid, 'pg_trigger'), '') AS comment
+	pg_get_triggerdef(t.oid) AS def
 FROM pg_trigger t
 JOIN pg_class c
 	ON (c.oid = t.tgrelid)
@@ -691,7 +691,7 @@ type QueryObjectMetadata struct {
 	Comment    string
 }
 
-func GetMetadataForObjectType(connection *utils.DBConn, schemaField string, aclField string, ownerField string, catalogTable string) map[uint32]utils.ObjectMetadata {
+func GetMetadataForObjectType(connection *utils.DBConn, schemaField string, aclField string, ownerField string, catalogTable string) utils.MetadataMap {
 	schemaStr := ""
 	if schemaField != "" {
 		schemaStr = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
@@ -716,7 +716,7 @@ ORDER BY o.oid, privileges;
 	err := connection.Select(&results, query)
 	utils.CheckError(err)
 
-	metadataMap := make(map[uint32]utils.ObjectMetadata)
+	metadataMap := make(utils.MetadataMap)
 	var metadata utils.ObjectMetadata
 	if len(results) > 0 {
 		currentObjectOid := uint32(0)
@@ -738,6 +738,32 @@ ORDER BY o.oid, privileges;
 			}
 		}
 		metadataMap[currentObjectOid] = metadata
+	}
+	return metadataMap
+}
+
+func GetCommentsForObjectType(connection *utils.DBConn, schemaField string, oidField string, commentTable string, catalogTable string) utils.MetadataMap {
+	schemaStr := ""
+	if schemaField != "" {
+		schemaStr = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
+WHERE %s`, schemaField, nonUserSchemaFilterClause)
+	}
+	query := fmt.Sprintf(`
+SELECT
+	o.%s AS objectOid,
+	coalesce(obj_description(o.%s, '%s'), '') AS comment
+FROM %s o
+%s;`, oidField, oidField, commentTable, catalogTable, schemaStr)
+
+	results := make([]QueryObjectMetadata, 0)
+	err := connection.Select(&results, query)
+	utils.CheckError(err)
+
+	metadataMap := make(utils.MetadataMap)
+	if len(results) > 0 {
+		for _, result := range results {
+			metadataMap[result.ObjectOid] = utils.ObjectMetadata{[]utils.ACL{}, result.Owner, result.Comment}
+		}
 	}
 	return metadataMap
 }

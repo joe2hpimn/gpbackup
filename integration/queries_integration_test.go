@@ -418,7 +418,7 @@ CYCLE`)
 			Expect(indexNameMap["public.simple_table_i_key"]).To(BeTrue())
 		})
 	})
-	Describe("GetIndexMetadata", func() {
+	Describe("GetIndexDefinitions", func() {
 		var indexNameMap map[string]bool
 		BeforeEach(func() {
 			indexNameMap = make(map[string]bool, 0)
@@ -426,9 +426,8 @@ CYCLE`)
 		It("returns no slice when no index exists", func() {
 			testutils.AssertQueryRuns(connection, "CREATE TABLE simple_table(i int)")
 			defer testutils.AssertQueryRuns(connection, "DROP TABLE simple_table")
-			oid := testutils.OidFromRelationName(connection, "simple_table")
 
-			results := backup.GetIndexMetadata(connection, oid, indexNameMap)
+			results := backup.GetIndexDefinitions(connection, indexNameMap)
 
 			Expect(len(results)).To(Equal(0))
 		})
@@ -439,19 +438,19 @@ CYCLE`)
 			defer testutils.AssertQueryRuns(connection, "DROP INDEX simple_table_idx1")
 			testutils.AssertQueryRuns(connection, "CREATE INDEX simple_table_idx2 ON simple_table(j)")
 			defer testutils.AssertQueryRuns(connection, "DROP INDEX simple_table_idx2")
-			testutils.AssertQueryRuns(connection, "COMMENT ON INDEX simple_table_idx2 IS 'this is a index comment'")
-			oid := testutils.OidFromRelationName(connection, "simple_table")
 
-			index1 := backup.QuerySimpleDefinition{"simple_table_idx1", "public", "simple_table",
-				"CREATE INDEX simple_table_idx1 ON simple_table USING btree (i)", ""}
-			index2 := backup.QuerySimpleDefinition{"simple_table_idx2", "public", "simple_table",
-				"CREATE INDEX simple_table_idx2 ON simple_table USING btree (j)", "this is a index comment"}
+			index1 := backup.QuerySimpleDefinition{0, "simple_table_idx1", "public", "simple_table",
+				"CREATE INDEX simple_table_idx1 ON simple_table USING btree (i)"}
+			index2 := backup.QuerySimpleDefinition{1, "simple_table_idx2", "public", "simple_table",
+				"CREATE INDEX simple_table_idx2 ON simple_table USING btree (j)"}
 
-			results := backup.GetIndexMetadata(connection, oid, indexNameMap)
+			results := backup.GetIndexDefinitions(connection, indexNameMap)
+			results[0].Oid = testutils.OidFromRelationName(connection, "simple_table_idx1")
+			results[1].Oid = testutils.OidFromRelationName(connection, "simple_table_idx2")
 
 			Expect(len(results)).To(Equal(2))
-			testutils.ExpectStructsToMatch(&index1, &results[0])
-			testutils.ExpectStructsToMatch(&index2, &results[1])
+			testutils.ExpectStructsToMatchExcluding(&index1, &results[0], "Oid")
+			testutils.ExpectStructsToMatchExcluding(&index2, &results[1], "Oid")
 		})
 		It("returns a slice of multiple indexes, excluding implicit indexes", func() {
 			testutils.AssertQueryRuns(connection, "CREATE TABLE simple_table(i int UNIQUE, j int, k int)")
@@ -460,20 +459,18 @@ CYCLE`)
 			defer testutils.AssertQueryRuns(connection, "DROP INDEX simple_table_idx1")
 			testutils.AssertQueryRuns(connection, "CREATE INDEX simple_table_idx2 ON simple_table(j)")
 			defer testutils.AssertQueryRuns(connection, "DROP INDEX simple_table_idx2")
-			testutils.AssertQueryRuns(connection, "COMMENT ON INDEX simple_table_idx2 IS 'this is a index comment'")
-			oid := testutils.OidFromRelationName(connection, "simple_table")
 			indexNameMap["public.simple_table_i_key"] = true
 
-			index1 := backup.QuerySimpleDefinition{"simple_table_idx1", "public", "simple_table",
-				"CREATE INDEX simple_table_idx1 ON simple_table USING btree (i)", ""}
-			index2 := backup.QuerySimpleDefinition{"simple_table_idx2", "public", "simple_table",
-				"CREATE INDEX simple_table_idx2 ON simple_table USING btree (j)", "this is a index comment"}
+			index1 := backup.QuerySimpleDefinition{0, "simple_table_idx1", "public", "simple_table",
+				"CREATE INDEX simple_table_idx1 ON simple_table USING btree (i)"}
+			index2 := backup.QuerySimpleDefinition{1, "simple_table_idx2", "public", "simple_table",
+				"CREATE INDEX simple_table_idx2 ON simple_table USING btree (j)"}
 
-			results := backup.GetIndexMetadata(connection, oid, indexNameMap)
+			results := backup.GetIndexDefinitions(connection, indexNameMap)
 
 			Expect(len(results)).To(Equal(2))
-			testutils.ExpectStructsToMatch(&index1, &results[0])
-			testutils.ExpectStructsToMatch(&index2, &results[1])
+			testutils.ExpectStructsToMatchExcluding(&index1, &results[0], "Oid")
+			testutils.ExpectStructsToMatchExcluding(&index2, &results[1], "Oid")
 		})
 	})
 	Describe("GetRuleMetadata", func() {
@@ -493,16 +490,16 @@ CYCLE`)
 			defer testutils.AssertQueryRuns(connection, "DROP RULE update_notify ON rule_table1")
 			testutils.AssertQueryRuns(connection, "COMMENT ON RULE update_notify ON rule_table1 IS 'This is a rule comment.'")
 
-			rule1 := backup.QuerySimpleDefinition{"double_insert", "public", "rule_table1",
-				"CREATE RULE double_insert AS ON INSERT TO rule_table1 DO INSERT INTO rule_table2 DEFAULT VALUES;", ""}
-			rule2 := backup.QuerySimpleDefinition{"update_notify", "public", "rule_table1",
-				"CREATE RULE update_notify AS ON UPDATE TO rule_table1 DO NOTIFY rule_table1;", "This is a rule comment."}
+			rule1 := backup.QuerySimpleDefinition{0, "double_insert", "public", "rule_table1",
+				"CREATE RULE double_insert AS ON INSERT TO rule_table1 DO INSERT INTO rule_table2 DEFAULT VALUES;"}
+			rule2 := backup.QuerySimpleDefinition{1, "update_notify", "public", "rule_table1",
+				"CREATE RULE update_notify AS ON UPDATE TO rule_table1 DO NOTIFY rule_table1;"}
 
 			results := backup.GetRuleMetadata(connection)
 
 			Expect(len(results)).To(Equal(2))
-			testutils.ExpectStructsToMatch(&rule1, &results[0])
-			testutils.ExpectStructsToMatch(&rule2, &results[1])
+			testutils.ExpectStructsToMatchExcluding(&rule1, &results[0], "Oid")
+			testutils.ExpectStructsToMatchExcluding(&rule2, &results[1], "Oid")
 		})
 	})
 	Describe("GetTriggerMetadata", func() {
@@ -522,18 +519,18 @@ CYCLE`)
 			defer testutils.AssertQueryRuns(connection, "DROP TRIGGER sync_trigger_table2 ON trigger_table2")
 			testutils.AssertQueryRuns(connection, "COMMENT ON TRIGGER sync_trigger_table2 ON trigger_table2 IS 'This is a trigger comment.'")
 
-			trigger1 := backup.QuerySimpleDefinition{"sync_trigger_table1", "public", "trigger_table1",
+			trigger1 := backup.QuerySimpleDefinition{0, "sync_trigger_table1", "public", "trigger_table1",
 				"CREATE TRIGGER sync_trigger_table1 AFTER INSERT OR DELETE OR UPDATE ON trigger_table1 FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger()",
-				""}
-			trigger2 := backup.QuerySimpleDefinition{"sync_trigger_table2", "public", "trigger_table2",
+			}
+			trigger2 := backup.QuerySimpleDefinition{1, "sync_trigger_table2", "public", "trigger_table2",
 				"CREATE TRIGGER sync_trigger_table2 AFTER INSERT OR DELETE OR UPDATE ON trigger_table2 FOR EACH STATEMENT EXECUTE PROCEDURE flatfile_update_trigger()",
-				"This is a trigger comment."}
+			}
 
 			results := backup.GetTriggerMetadata(connection)
 
 			Expect(len(results)).To(Equal(2))
-			testutils.ExpectStructsToMatch(&trigger1, &results[0])
-			testutils.ExpectStructsToMatch(&trigger2, &results[1])
+			testutils.ExpectStructsToMatchExcluding(&trigger1, &results[0], "Oid")
+			testutils.ExpectStructsToMatchExcluding(&trigger2, &results[1], "Oid")
 		})
 		It("does not include constraint triggers", func() {
 			testutils.AssertQueryRuns(connection, "CREATE TABLE trigger_table1(i int PRIMARY KEY)")
@@ -749,40 +746,41 @@ CYCLE`)
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
 			oid := testutils.OidFromRelationName(connection, "testtable")
-			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("testrole", "TABLE")}, Owner: "testrole", Comment: "This is a table comment."}
+			expectedMetadata := testutils.DefaultMetadataMap("TABLE")[1]
 			Expect(len(resultMetadataMap)).To(Equal(1))
 			resultMetadata := resultMetadataMap[oid]
-			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+			testutils.ExpectStructsToMatchExcluding(&resultMetadata, &expectedMetadata, "Oid")
 		})
 		It("returns a slice of default metadata for a sequence", func() {
 			testutils.AssertQueryRuns(connection, "CREATE SEQUENCE testsequence")
 			defer testutils.AssertQueryRuns(connection, "DROP SEQUENCE testsequence")
-			testutils.AssertQueryRuns(connection, "REVOKE UPDATE ON SEQUENCE testsequence FROM testrole")
+			testutils.AssertQueryRuns(connection, "GRANT ALL ON SEQUENCE testsequence TO testrole")
 			testutils.AssertQueryRuns(connection, "COMMENT ON SEQUENCE testsequence IS 'This is a sequence comment.'")
 
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
 			oid := testutils.OidFromRelationName(connection, "testsequence")
-			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLWithout("testrole", "SEQUENCE", "UPDATE")}, Owner: "testrole", Comment: "This is a sequence comment."}
+			expectedMetadata := testutils.DefaultMetadataMap("SEQUENCE")[1]
 			Expect(len(resultMetadataMap)).To(Equal(1))
 			resultMetadata := resultMetadataMap[oid]
-			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+			testutils.ExpectStructsToMatchExcluding(&resultMetadata, &expectedMetadata, "Oid")
 		})
 		It("returns a slice of default metadata for a function", func() {
 			testutils.AssertQueryRuns(connection, `CREATE FUNCTION add(integer, integer) RETURNS integer
 AS 'SELECT $1 + $2'
 LANGUAGE SQL`)
 			defer testutils.AssertQueryRuns(connection, "DROP FUNCTION add(integer, integer)")
-			testutils.AssertQueryRuns(connection, "REVOKE ALL ON FUNCTION add(integer, integer) FROM testrole")
+			testutils.AssertQueryRuns(connection, "GRANT ALL ON FUNCTION add(integer, integer) TO testrole")
+			testutils.AssertQueryRuns(connection, "REVOKE ALL ON FUNCTION add(integer, integer) FROM PUBLIC")
 			testutils.AssertQueryRuns(connection, "COMMENT ON FUNCTION add(integer, integer) IS 'This is a function comment.'")
 
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "pronamespace", "proacl", "proowner", "pg_proc")
 
 			oid := testutils.OidFromFunctionName(connection, "add")
-			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("", "FUNCTION")}, Owner: "testrole", Comment: "This is a function comment."}
+			expectedMetadata := testutils.DefaultMetadataMap("FUNCTION")[1]
 			Expect(len(resultMetadataMap)).To(Equal(1))
 			resultMetadata := resultMetadataMap[oid]
-			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+			testutils.ExpectStructsToMatchExcluding(&resultMetadata, &expectedMetadata, "Oid")
 		})
 		It("returns a slice of default metadata for a view", func() {
 			testutils.AssertQueryRuns(connection, `CREATE VIEW testview AS SELECT * FROM pg_class`)
@@ -793,10 +791,30 @@ LANGUAGE SQL`)
 			resultMetadataMap := backup.GetMetadataForObjectType(connection, "relnamespace", "relacl", "relowner", "pg_class")
 
 			oid := testutils.OidFromRelationName(connection, "testview")
-			expectedMetadata := utils.ObjectMetadata{Privileges: []utils.ACL{utils.DefaultACLForType("testrole", "VIEW")}, Owner: "testrole", Comment: "This is a view comment."}
+			expectedMetadata := testutils.DefaultMetadataMap("VIEW")[1]
 			Expect(len(resultMetadataMap)).To(Equal(1))
 			resultMetadata := resultMetadataMap[oid]
-			testutils.ExpectStructsToMatch(&resultMetadata, &expectedMetadata)
+			testutils.ExpectStructsToMatchExcluding(&resultMetadata, &expectedMetadata, "Oid")
+		})
+	})
+	Describe("GetCommentsForObjectType", func() {
+		It("returns a slice of default metadata for an index", func() {
+			resultMetadataMap := backup.GetCommentsForObjectType(connection, "", "indexrelid", "pg_class", "pg_index")
+			numIndexes := len(resultMetadataMap)
+
+			testutils.AssertQueryRuns(connection, `CREATE TABLE testtable(i int)`)
+			testutils.AssertQueryRuns(connection, `CREATE INDEX testindex ON testtable USING btree(i)`)
+			defer testutils.AssertQueryRuns(connection, "DROP TABLE testtable")
+			testutils.AssertQueryRuns(connection, "COMMENT ON INDEX testindex IS 'This is an index comment.'")
+
+			resultMetadataMap = backup.GetCommentsForObjectType(connection, "", "indexrelid", "pg_class", "pg_index")
+
+			oid := testutils.OidFromRelationName(connection, "testindex")
+			expectedMetadataMap := testutils.DefaultCommentMap("INDEX")
+			expectedMetadata := expectedMetadataMap[1]
+			Expect(len(resultMetadataMap)).To(Equal(numIndexes + 1))
+			resultMetadata := resultMetadataMap[oid]
+			testutils.ExpectStructsToMatchExcluding(&resultMetadata, &expectedMetadata, "Oid")
 		})
 	})
 	Describe("GetExternalTablesMap", func() {

@@ -64,6 +64,8 @@ type ACL struct {
 	Connect    bool
 }
 
+type MetadataMap map[uint32]ObjectMetadata
+
 /*
  * Functions for escaping schemas and tables
  */

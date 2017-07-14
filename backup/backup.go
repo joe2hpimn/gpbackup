@@ -219,8 +219,10 @@ func backupPostdata(filename string, tables []utils.Relation, extTableMap map[st
 	PrintSessionGUCs(postdataFile, gucs)
 
 	logger.Verbose("Writing CREATE INDEX statements to postdata file")
-	indexes := GetIndexesForAllTables(connection, tables)
-	PrintPostdataCreateStatements(postdataFile, indexes)
+	indexNameMap := ConstructImplicitIndexNames(connection)
+	indexes := GetIndexDefinitions(connection, indexNameMap)
+	indexMetadata := GetCommentsForObjectType(connection, "", "indexrelid", "pg_class", "pg_index")
+	PrintCreateIndexStatements(postdataFile, indexes, indexMetadata)
 
 	logger.Verbose("Writing CREATE RULE statements to postdata file")
 	rules := GetRuleDefinitions(connection)

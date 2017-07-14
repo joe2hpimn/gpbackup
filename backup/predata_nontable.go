@@ -82,7 +82,7 @@ func PrintConstraintStatements(predataFile io.Writer, constraints []string, fkCo
 	}
 }
 
-func PrintCreateSchemaStatements(predataFile io.Writer, schemas []utils.Schema, schemaMetadata map[uint32]utils.ObjectMetadata) {
+func PrintCreateSchemaStatements(predataFile io.Writer, schemas []utils.Schema, schemaMetadata utils.MetadataMap) {
 	for _, schema := range schemas {
 		utils.MustPrintln(predataFile)
 		if schema.SchemaName != "public" {
@@ -107,7 +107,7 @@ func GetAllSequences(connection *utils.DBConn) []Sequence {
  * This function is largely derived from the dumpSequence() function in pg_dump.c.  The values of
  * minVal and maxVal come from SEQ_MINVALUE and SEQ_MAXVALUE, defined in include/commands/sequence.h.
  */
-func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, sequenceColumnOwners map[string]string, sequenceMetadata map[uint32]utils.ObjectMetadata) {
+func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, sequenceColumnOwners map[string]string, sequenceMetadata utils.MetadataMap) {
 	maxVal := int64(9223372036854775807)
 	minVal := int64(-9223372036854775807)
 	for _, sequence := range sequences {
@@ -145,7 +145,7 @@ func PrintCreateSequenceStatements(predataFile io.Writer, sequences []Sequence, 
 }
 
 func PrintCreateLanguageStatements(predataFile io.Writer, procLangs []QueryProceduralLanguage,
-	funcInfoMap map[uint32]FunctionInfo, procLangMetadata map[uint32]utils.ObjectMetadata) {
+	funcInfoMap map[uint32]FunctionInfo, procLangMetadata utils.MetadataMap) {
 	for _, procLang := range procLangs {
 		quotedOwner := utils.QuoteIdent(procLang.Owner)
 		quotedLanguage := utils.QuoteIdent(procLang.Name)
@@ -179,7 +179,7 @@ func PrintCreateLanguageStatements(predataFile io.Writer, procLangs []QueryProce
 	}
 }
 
-func PrintCreateViewStatements(predataFile io.Writer, views []QueryViewDefinition, viewMetadata map[uint32]utils.ObjectMetadata) {
+func PrintCreateViewStatements(predataFile io.Writer, views []QueryViewDefinition, viewMetadata utils.MetadataMap) {
 	for _, view := range views {
 		viewFQN := utils.MakeFQN(view.SchemaName, view.ViewName)
 		utils.MustPrintf(predataFile, "\n\nCREATE VIEW %s AS %s\n", viewFQN, view.Definition)
