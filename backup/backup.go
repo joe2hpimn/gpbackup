@@ -226,7 +226,8 @@ func backupPostdata(filename string, tables []utils.Relation, extTableMap map[st
 
 	logger.Verbose("Writing CREATE RULE statements to postdata file")
 	rules := GetRuleDefinitions(connection)
-	PrintPostdataCreateStatements(postdataFile, rules)
+	ruleMetadata := GetCommentsForObjectType(connection, "", "oid", "pg_rewrite", "pg_rewrite")
+	PrintPostdataCreateStatements(postdataFile, rules, ruleMetadata)
 
 	logger.Verbose("Writing CREATE TRIGGER statements to postdata file")
 	triggers := GetTriggerDefinitions(connection)

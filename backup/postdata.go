@@ -21,18 +21,11 @@ func PrintCreateIndexStatements(postdataFile io.Writer, indexes []QuerySimpleDef
 	}
 }
 
-func GetRuleDefinitions(connection *utils.DBConn) []string {
-	rules := make([]string, 0)
-	ruleList := GetRuleMetadata(connection)
-	for _, rule := range ruleList {
-		ruleStr := fmt.Sprintf("\n\n%s", rule.Def)
-		/*if rule.Comment != "" {
-			tableFQN := utils.MakeFQN(rule.OwningSchema, rule.OwningTable)
-			ruleStr += fmt.Sprintf("\nCOMMENT ON RULE %s ON %s IS '%s';", utils.QuoteIdent(rule.Name), tableFQN, rule.Comment)
-		}*/
-		rules = append(rules, ruleStr)
+func PrintCreateRuleStatements(postdataFile io.Writer, rules []QuerySimpleDefinition, ruleMetadata utils.MetadataMap) {
+	for _, rule := range rules {
+		utils.MustPrintf(postdataFile, "\n\n%s;", rule.Def)
+		PrintObjectMetadata(postdataFile, ruleMetadata[rule.Oid], rule.Name, "RULE")
 	}
-	return rules
 }
 
 func GetTriggerDefinitions(connection *utils.DBConn) []string {

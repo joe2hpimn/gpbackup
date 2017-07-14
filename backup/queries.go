@@ -380,7 +380,7 @@ ORDER BY name;`, nonUserSchemaFilterClause)
  * Rules named "_RETURN", "pg_settings_n", and "pg_settings_u" are
  * built-in rules and we don't want to dump them.
  */
-func GetRuleMetadata(connection *utils.DBConn) []QuerySimpleDefinition {
+func GetRuleDefinitions(connection *utils.DBConn) []QuerySimpleDefinition {
 	query := `
 SELECT
 	c.oid,
