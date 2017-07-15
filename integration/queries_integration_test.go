@@ -1069,11 +1069,10 @@ CREATE AGGREGATE agg_prefunc(numeric, numeric) (
 				SchemaName: "public", AggregateName: "agg_prefunc", Arguments: "numeric, numeric",
 				IdentArgs: "numeric, numeric", TransitionFunction: transitionOid, PreliminaryFunction: prelimOid,
 				FinalFunction: 0, SortOperator: 0, TransitionDataType: "numeric", InitialValue: "0", IsOrdered: false,
-				Comment: "", Owner: "testrole",
 			}
 
 			Expect(len(result)).To(Equal(1))
-			testutils.ExpectStructsToMatch(&result[0], &aggregateDef)
+			testutils.ExpectStructsToMatchExcluding(&result[0], &aggregateDef, "AggregateOid")
 		})
 	})
 	Describe("GetFunctionOidToInfoMap", func() {

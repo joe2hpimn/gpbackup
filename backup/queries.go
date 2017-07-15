@@ -493,6 +493,7 @@ ORDER BY nspname, proname, identargs;`, nonUserSchemaFilterClause)
 }
 
 type QueryAggregateDefinition struct {
+	AggregateOid        uint32
 	SchemaName          string `db:"nspname"`
 	AggregateName       string `db:"proname"`
 	Arguments           string
@@ -504,13 +505,12 @@ type QueryAggregateDefinition struct {
 	TransitionDataType  string
 	InitialValue        string
 	IsOrdered           bool `db:"aggordered"`
-	Comment             string
-	Owner               string
 }
 
 func GetAggregateDefinitions(connection *utils.DBConn) []QueryAggregateDefinition {
 	query := fmt.Sprintf(`
 SELECT
+	p.oid AS aggregateoid,
 	n.nspname,
 	p.proname,
 	pg_catalog.pg_get_function_arguments(p.oid) AS arguments,
@@ -521,9 +521,7 @@ SELECT
 	a.aggsortop::regproc::oid,
 	t.typname as transitiondatatype,
 	coalesce(a.agginitval, '') AS initialvalue,
-	a.aggordered,
-	coalesce(obj_description(a.aggfnoid), '') AS comment,
-	pg_get_userbyid(p.proowner) AS owner
+	a.aggordered
 FROM pg_aggregate a
 LEFT JOIN pg_proc p ON a.aggfnoid = p.oid
 LEFT JOIN pg_type t ON a.aggtranstype = t.oid
@@ -703,20 +701,27 @@ func GetMetadataForObjectType(connection *utils.DBConn, schemaField string, aclF
 		schemaStr = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
 WHERE %s`, schemaField, nonUserSchemaFilterClause)
 	}
-	query := fmt.Sprintf(`
-SELECT
-	o.oid AS objectOid,
-	CASE
+	aclStr := ""
+	if aclField != "" {
+		aclStr = fmt.Sprintf(`CASE
 		WHEN o.%s IS NULL THEN ''
 		WHEN array_length(o.%s, 1) = 0 THEN 'GRANTEE=/GRANTOR'
 		ELSE unnest(o.%s)::text
-	END AS privileges,
+	END
+`, aclField, aclField, aclField)
+	} else {
+		aclStr = "''"
+	}
+	query := fmt.Sprintf(`
+SELECT
+	o.oid AS objectOid,
+	%s AS privileges,
 	pg_get_userbyid(o.%s) AS owner,
 	coalesce(obj_description(o.oid, '%s'), '') AS comment
 FROM %s o
 %s
 ORDER BY o.oid, privileges;
-`, aclField, aclField, aclField, ownerField, catalogTable, catalogTable, schemaStr)
+`, aclStr, ownerField, catalogTable, catalogTable, schemaStr)
 
 	results := make([]QueryObjectMetadata, 0)
 	err := connection.Select(&results, query)

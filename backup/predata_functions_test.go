@@ -243,19 +243,21 @@ $_$`)
 	})
 	Describe("PrintCreateAggregateStatements", func() {
 		aggDefs := make([]backup.QueryAggregateDefinition, 1)
-		aggDefault := backup.QueryAggregateDefinition{"public", "agg_name", "integer, integer", "integer, integer", 1, 0, 0, 0, "integer", "", false, "", ""}
+		aggDefault := backup.QueryAggregateDefinition{1, "public", "agg_name", "integer, integer", "integer, integer", 1, 0, 0, 0, "integer", "", false}
 		funcInfoMap := map[uint32]backup.FunctionInfo{
 			1: {QualifiedName: "public.mysfunc", Arguments: "integer"},
 			2: {QualifiedName: "public.mypfunc", Arguments: "numeric, numeric"},
 			3: {QualifiedName: "public.myffunc", Arguments: "text"},
 			4: {QualifiedName: "public.mysortop", Arguments: "bigint"},
 		}
+		aggMetadataMap := utils.MetadataMap{}
 		BeforeEach(func() {
 			aggDefs[0] = aggDefault
+			aggMetadataMap = utils.MetadataMap{}
 		})
 
 		It("prints an aggregate definition for an unordered aggregate with no optional specifications", func() {
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer
@@ -263,7 +265,7 @@ $_$`)
 		})
 		It("prints an aggregate definition for an ordered aggregate with no optional specifications", func() {
 			aggDefs[0].IsOrdered = true
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE ORDERED AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer
@@ -272,7 +274,7 @@ $_$`)
 		It("prints an aggregate definition for an unordered aggregate with no arguments", func() {
 			aggDefs[0].Arguments = ""
 			aggDefs[0].IdentArgs = ""
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(*) (
 	SFUNC = public.mysfunc,
 	STYPE = integer
@@ -280,7 +282,7 @@ $_$`)
 		})
 		It("prints an aggregate with a preliminary function", func() {
 			aggDefs[0].PreliminaryFunction = 2
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer,
@@ -289,7 +291,7 @@ $_$`)
 		})
 		It("prints an aggregate with a final function", func() {
 			aggDefs[0].FinalFunction = 3
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer,
@@ -298,7 +300,7 @@ $_$`)
 		})
 		It("prints an aggregate with an initial condition", func() {
 			aggDefs[0].InitialValue = "0"
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer,
@@ -307,7 +309,7 @@ $_$`)
 		})
 		It("prints an aggregate with a sort operator", func() {
 			aggDefs[0].SortOperator = 4
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer,
@@ -317,7 +319,7 @@ $_$`)
 		It("prints an aggregate with multiple specifications", func() {
 			aggDefs[0].FinalFunction = 3
 			aggDefs[0].SortOperator = 4
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer,
@@ -325,43 +327,35 @@ $_$`)
 	SORTOP = public.mysortop
 );`)
 		})
-		It("prints an aggregate with owner", func() {
-			aggDefs[0].Owner = "testrole"
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+		It("prints an aggregate with owner and comment", func() {
+			aggMetadataMap[1] = utils.ObjectMetadata{Privileges: []utils.ACL{}, Owner: "testrole", Comment: "This is an aggregate comment."}
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
 	SFUNC = public.mysfunc,
 	STYPE = integer
 );
 
-ALTER AGGREGATE public.agg_name(integer, integer) OWNER TO testrole;
-`)
-		})
-		It("prints an aggregate with comment", func() {
-			aggDefs[0].Comment = "This is an aggregate comment"
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
-			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(integer, integer) (
-	SFUNC = public.mysfunc,
-	STYPE = integer
-);
 
-COMMENT ON AGGREGATE public.agg_name(integer, integer) IS 'This is an aggregate comment';
-`)
+COMMENT ON AGGREGATE public.agg_name(integer, integer) IS 'This is an aggregate comment.';
+
+
+ALTER AGGREGATE public.agg_name(integer, integer) OWNER TO testrole;`)
 		})
 		It("prints an aggregate with owner, comment, and no arguments", func() {
 			aggDefs[0].Arguments = ""
 			aggDefs[0].IdentArgs = ""
-			aggDefs[0].Owner = "testrole"
-			aggDefs[0].Comment = "This is an aggregate comment"
-			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap)
+			aggMetadataMap[1] = utils.ObjectMetadata{Privileges: []utils.ACL{}, Owner: "testrole", Comment: "This is an aggregate comment."}
+			backup.PrintCreateAggregateStatements(buffer, aggDefs, funcInfoMap, aggMetadataMap)
 			testutils.ExpectRegexp(buffer, `CREATE AGGREGATE public.agg_name(*) (
 	SFUNC = public.mysfunc,
 	STYPE = integer
 );
 
-ALTER AGGREGATE public.agg_name(*) OWNER TO testrole;
 
-COMMENT ON AGGREGATE public.agg_name(*) IS 'This is an aggregate comment';
-`)
+COMMENT ON AGGREGATE public.agg_name(*) IS 'This is an aggregate comment.';
+
+
+ALTER AGGREGATE public.agg_name(*) OWNER TO testrole;`)
 		})
 	})
 	Describe("PrintCreateCastStatements", func() {

@@ -82,7 +82,7 @@ func PrintFunctionModifiers(predataFile io.Writer, funcDef QueryFunctionDefiniti
 	}
 }
 
-func PrintCreateAggregateStatements(predataFile io.Writer, aggDefs []QueryAggregateDefinition, funcInfoMap map[uint32]FunctionInfo) {
+func PrintCreateAggregateStatements(predataFile io.Writer, aggDefs []QueryAggregateDefinition, funcInfoMap map[uint32]FunctionInfo, aggMetadata utils.MetadataMap) {
 	for _, aggDef := range aggDefs {
 		aggFQN := utils.MakeFQN(aggDef.SchemaName, aggDef.AggregateName)
 		orderedStr := ""
@@ -92,10 +92,6 @@ func PrintCreateAggregateStatements(predataFile io.Writer, aggDefs []QueryAggreg
 		argumentsStr := "*"
 		if aggDef.Arguments != "" {
 			argumentsStr = aggDef.Arguments
-		}
-		identArgumentsStr := "*"
-		if aggDef.IdentArgs != "" {
-			identArgumentsStr = aggDef.IdentArgs
 		}
 		utils.MustPrintf(predataFile, "\n\nCREATE %sAGGREGATE %s(%s) (\n", orderedStr, aggFQN, argumentsStr)
 
@@ -114,15 +110,14 @@ func PrintCreateAggregateStatements(predataFile io.Writer, aggDefs []QueryAggreg
 		if aggDef.SortOperator != 0 {
 			utils.MustPrintf(predataFile, ",\n\tSORTOP = %s", funcInfoMap[aggDef.SortOperator].QualifiedName)
 		}
-
 		utils.MustPrintln(predataFile, "\n);")
 
-		if aggDef.Owner != "" {
-			utils.MustPrintf(predataFile, "\nALTER AGGREGATE %s(%s) OWNER TO %s;\n", aggFQN, identArgumentsStr, utils.QuoteIdent(aggDef.Owner))
+		identArgumentsStr := "*"
+		if aggDef.IdentArgs != "" {
+			identArgumentsStr = aggDef.IdentArgs
 		}
-		if aggDef.Comment != "" {
-			utils.MustPrintf(predataFile, "\nCOMMENT ON AGGREGATE %s(%s) IS '%s';\n", aggFQN, identArgumentsStr, aggDef.Comment)
-		}
+		aggFQN = fmt.Sprintf("%s(%s)", aggFQN, identArgumentsStr)
+		PrintObjectMetadata(predataFile, aggMetadata[aggDef.AggregateOid], aggFQN, "AGGREGATE")
 	}
 }
 

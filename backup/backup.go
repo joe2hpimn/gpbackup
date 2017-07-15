@@ -167,7 +167,8 @@ func backupPredata(filename string, tables []utils.Relation, extTableMap map[str
 
 	logger.Verbose("Writing CREATE AGGREGATE statements to predata file")
 	aggDefs := GetAggregateDefinitions(connection)
-	PrintCreateAggregateStatements(predataFile, aggDefs, funcInfoMap)
+	aggMetadata := GetMetadataForObjectType(connection, "", "", "proowner", "pg_proc")
+	PrintCreateAggregateStatements(predataFile, aggDefs, funcInfoMap, aggMetadata)
 
 	logger.Verbose("Writing CREATE CAST statements to predata file")
 	castDefs := GetCastDefinitions(connection)
